@@ -1,13 +1,7 @@
 from ninja import NinjaAPI
 from pydantic import BaseModel
-
+from wishlist_app.api import router as wishlist_router
 api = NinjaAPI()
 
-class HealthResponse(BaseModel):
-    status: str
 
-
-@api.get('/health')
-def health(request):
-    response = HealthResponse(status='ok')
-    return response
+api.add_router('/wishlist/',wishlist_router)
