@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: wishlist_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wishlist
+      POSTGRES_USER: wishlist
+      POSTGRES_PASSWORD: wishlist
+    ports:
+      - "5432:5432"
+    volumes:
+      - wishlist_pg_data:/var/lib/postgresql/data
+volumes:
+  wishlist_pg_data:
