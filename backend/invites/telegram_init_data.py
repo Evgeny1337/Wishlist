@@ -4,6 +4,10 @@ import time
 from urllib.parse import parse_qs
 
 
+class InvalidInitData(ValueError):
+    """Строка initData не прошла проверку (формат, подпись HMAC или auth_date)."""
+
+
 def parse_init_data_pairs(init_data: str) -> dict[str, str]:
     parsed_data = parse_qs(init_data)
     return {key: parsed_data[key][0] for key in parsed_data.keys()}
@@ -49,3 +53,30 @@ def is_auth_date_fresh(
     reference = int(time.time()) if now_ts is None else now_ts
     age = reference - auth_ts
     return 0 <= age <= max_age_seconds
+
+
+def verify_init_data(
+    init_data: str,
+    bot_token: str,
+    *,
+    now_ts: int | None = None,
+    max_age_seconds: int = 86400,
+) -> dict[str, str]:
+    pairs = parse_init_data_pairs(init_data)
+    if "hash" not in pairs:
+        raise InvalidInitData("initData без поля hash")
+    if "auth_date" not in pairs:
+        raise InvalidInitData("initData без поля auth_date")
+
+    received_hash = pairs["hash"]
+    data_check_string = build_data_check_string(pairs)
+    secret = init_data_secret_key(bot_token)
+    if not is_valid_init_data_hash(data_check_string, received_hash, secret):
+        raise InvalidInitData("неверная подпись initData")
+
+    if not is_auth_date_fresh(
+        pairs["auth_date"], max_age_seconds=max_age_seconds, now_ts=now_ts
+    ):
+        raise InvalidInitData("auth_date недействителен или устарел")
+
+    return pairs

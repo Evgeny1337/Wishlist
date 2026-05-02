@@ -1,10 +1,13 @@
 from ninja import NinjaAPI
 from pydantic import BaseModel
-from invites.api import router as InviteRouter
+import invites.api
+import invites.telegram_webapp
+
 
 api = NinjaAPI()
 
-api.add_router('/invites/', InviteRouter)
+api.add_router('/invites/', invites.api.router)
+api.add_router('/telegram_webapp/', invites.telegram_webapp.router)
 
 class HealthResponse(BaseModel):
     status: str
