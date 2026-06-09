@@ -18,6 +18,23 @@
 
 Ниже — ориентировочный порядок работ и **какие темы освоить** в контексте WishList. Детали scope этапа можно уточнять в roadmap / issues.
 
+## Roadmap (текущий статус)
+
+Ниже — короткий список “что уже зелёное” и что делать дальше небольшими шагами (по одному проверяемому результату).
+
+- [x] **Telegram WebApp `initData`**: парсинг и проверка подписи (HMAC) на бэкенде (`invites/telegram_init_data.py`).
+- [x] **`/api/telegram_webapp/verify-init-data`**: `verify_init_data → user → TelegramProfile`, ответ содержит `telegram_user_id`.
+- [x] **Активация инвайта через WebApp**: `POST /api/telegram_webapp/activate-invite` (initData + token).
+- [x] **Личное приглашение**: поле **`Invite.for_telegram_user_id`**; общий до **`max_uses`**, если поле пустое; повтор входа тем же пользователем — снова **успешный ответ**, лимит **не** расходуется второй раз (**идемпотентность**); WebApp-путь без создания профиля при отказе «не тот user» — см. **`apply_invite_token_for_webapp_user`**.
+- [x] **Удалён заглушечный** `POST /api/invites/confirm`.
+- [x] **Тесты**: `poetry run pytest -q` — **58 passed** (локально через Poetry).
+
+Ближайшие следующие шаги (выбирать по одному):
+
+- [ ] **Аутентификация после активации**: **JWT только после успешной** `activate-invite` (вариант A), затем `HttpBearer` и минимальный «кто я» / защита будущих ручек.
+- [ ] **PostgreSQL в dev**: Compose; миграции (включая `0008`); повторить `pytest`.
+- [ ] **CI**: один job только `pytest`, без секретов в логах.
+
 ### Этап 1 — Каркас API и конфигурация
 
 - Django (проект, `urls`, settings), **Django Ninja**, Pydantic v2; при необходимости OpenAPI/Swagger для контракта с фронтом.

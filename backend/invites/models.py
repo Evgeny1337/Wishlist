@@ -8,6 +8,13 @@ class Invite(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True, verbose_name="Срок действия")
     is_active = models.BooleanField(default=True, verbose_name='Активная ссылка')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата создания')
+    for_telegram_user_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Только для Telegram user id',
+        help_text='Если задано, активировать ссылку может только этот telegram user id; '
+        'NULL — общий инвайт в пределах max_uses.',
+    )
     def __str__(self):
         return self.created_at.strftime('%Y/%m/%d') + ' - ' + ('Активный' if self.is_active else 'Не активный')
 

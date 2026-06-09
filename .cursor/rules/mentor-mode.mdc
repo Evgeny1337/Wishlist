@@ -31,17 +31,35 @@ alwaysApply: true
 Используй как отправную точку; при расхождении с кодом **перепроверяй файлы**.
 
 - Django-проект в `backend/wishlist`; точка входа — `backend/manage.py`.
-- API: Django Ninja, префикс в `urls.py` — `api/`; сейчас по сути **health** в `api.py`.
-- БД в `settings.py` часто **SQLite** (dev по умолчанию); в `pyproject.toml` уже может быть **psycopg** — целевой стек README — **PostgreSQL**.
+- API: Django Ninja, префикс в `urls.py` — `api/`; в `wishlist/api.py` — **health**, роутеры **`/invites/`** и **`/telegram_webapp/`**.
+- БД в `settings.py` целевым образом **PostgreSQL** (параметры из env: `POSTGRES_*`); локально без БД тесты могут идти на **SQLite через override** в `pytest`/настройках проекта — сверяй `settings.py` при советах.
 - README ссылается на **`.env.example`**, pytest/flake8/mypy — в проекте они могут быть **ещё не подключены**; не предполагай, что всё уже есть.
 
 При советах **не игнорируй этот разрыв**: учи закрывать его маленькими шагами (env → БД → тесты → и т.д.).
 
 ## Чекпоинт разработки (обновлять при «остановились / продолжаем»)
 
-- **Сделано:** `parse_init_data_pairs` в `backend/invites/telegram_init_data.py`; тест на URL-decoding поля `user`.
-- **В работе / следующий зелёный критерий:** `build_data_check_string(pairs)` — все пары **кроме** `hash`, ключи **по алфавиту**, склейка `key=value` через `\n`; один тест с **фиксированной** эталонной строкой (как в [доке Web Apps — Validating data received via the Mini App](https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app)).
-- **Дальше по очереди (не смешивать в один шаг):** секретный ключ из bot token → HMAC-SHA256 → `compare_digest` → проверка `auth_date` → эндпоинт Ninja / связка с активацией.
+**Остановились здесь (актуально по репозиторию):**
+
+- **Сделано:**  
+  - `backend/invites/telegram_init_data.py` — разбор `initData`, **`verify_init_data`**, **`InvalidInitData`**.  
+  - `backend/invites/telegram_webapp_user.py` — **`UserModel` (Pydantic)**, **`telegram_user_init_data(pairs)`**.  
+  - `backend/invites/services.py` — **`ensure_telegram_profile(user)`** (`get_or_create` по `telegram_user_id`, `defaults` из WebApp user).  
+  - `backend/invites/telegram_webapp.py` — **POST `/api/telegram_webapp/verify-init-data`**: `verify_init_data → telegram_user_init_data → ensure_telegram_profile`, ответ **`{ ok: true, telegram_user_id }`**.  
+  - `backend/invites/telegram_webapp.py` — **POST `/api/telegram_webapp/activate-invite`**: `apply_invite_token_for_webapp_user` (сначала проверка инвайта и **`for_telegram_user_id`** по `web_user.id`, затем `ensure_telegram_profile` — без лишнего профиля при «чужой» личной ссылке), ответ **`{ ok, used_count, token, telegram_user_id }`**.  
+  - **Инвайты:** модель **`Invite.for_telegram_user_id`** (личная ссылка; `NULL` — общий инвайт до `max_uses`); повторная активация **тем же** `TelegramProfile` **идемпотентна**: снова **200**, `used_count` **не** инкрементируется; миграция **`0008_invite_for_telegram_user_id`**.  
+  - Модели **`TelegramProfile`** / **`InviteActivation`**; **POST `/api/invites/activate`** (`invites/api.py`); заглушка **`POST /api/invites/confirm`** удалена.  
+  - Тесты — пакет **`backend/invites/tests/`** (в т.ч. `test_activate_via_webapp_api`, `test_activate_api`, `helpers.fresh_signed_init_data_user_id`), не один файл `tests.py`.
+- **Зелёный критерий подтверждён:** `poetry run pytest -q` — **58 passed**.
+- **Следующий маленький шаг (продукт / auth):** **JWT после успешной** `activate-invite` (**вариант A** контракт: токен только после активации), схема Pydantic/ответ расширен, **один тест**; затем общий **`HttpBearer`** для защищённых ручек.  
+- **Параллельно возможны:** Compose + PostgreSQL в dev; первый CI job с `pytest`.
+- **Параллельная траектория (см. ниже «Контекст разработчика»):** CI/CD и автодеплой на сервер в DE.
+
+## Контекст разработчика (инфра, регион)
+
+- У пользователя **сервер в Германии** — логичная площадка для API/WebApp/бота в проде или стейдже.
+- **На территории РФ** доступ к сервисам Telegram **без VPN** сейчас **невозможен** — локальные проверки WebApp/бота упираются в VPN; CI и сервер в DE могут выполнять шаги, где нужен исходящий доступ к Telegram API, **если** это явно заложено в pipeline (и не смешивать с секретами в логах).
+- **Отдельная траектория обучения (запрос пользователя):** настроить **CI/CD**, **подробно изучить тему**, по возможности с **автоматизацией деплоя** на этот сервер (GitLab CI из README репо — естественный ориентир; альтернативы — GitHub Actions + ssh/rsync, Ansible, Docker Compose на хосте и т.д.). Ментор: при шагах по CI/CD давать **один** проверяемый результат за подшаг (первый pipeline только lint/test, деплой — отдельно).
 
 ## План реализации и обучение ORM
 
@@ -118,10 +136,11 @@ alwaysApply: true
 
 Правила ведения — в разделе **«Некритичные замечания → backlog»** выше. Предлагать отдельный шаг «почистить backlog» — когда накопилось много или перед релизом.
 
-- [ ] `invites/api.py`: проверка лимита (`used_count` / `max_uses`) **до** `InviteActivation.objects.get_or_create(...)` — яснее поток, меньше лишней работы в транзакции при отказе по лимиту (при сохранении текущей семантики ответов).
-- [ ] `invites/api.py`: убрать `token` из JSON-ответа активации, если контракту фронта не нужен.
-- [ ] `invites/api.py`: единообразие `raise HttpError(...)` без лишних пробелов; вычитка текстов ошибок (404/403/409).
-- [ ] `invites/models.py`: пустая строка перед `def __str__` в классах (PEP 8), по желанию.
+- [ ] **`invites/api.py` + OpenAPI/README:** описать в контракте поле **`for_telegram_user_id`** инвайта и смысл **`max_uses`** для общего vs личного сценария (для админов и фронта).
+- [ ] **`invites/api.py`**, **`telegram_webapp.py`:** по желанию убрать **`token`** инвайта из JSON-ответов активации, если клиенту не нужен после успеха.
+- [ ] **`invites/`:** единый стиль `HttpError`/тексты **403** (личный инвайт / лимит / срок — при необходимости различимые сообщения кодами или кодами ошибок в теле).
+- [ ] **`POST /api/invites/activate`:** без `initData` доверяет телу JSON — зафиксировать как **не для прод-публичного API** или убрать после JWT/WebApp-only (без отдельного шага не блокировать MVP).
+- [ ] **`invites/models.py`:** пустая строка перед `def __str__` в классах (PEP 8), по желанию.
 
 ## Отложенный рефакторинг (фиксировать и предлагать по мере шагов)
 
@@ -133,7 +152,6 @@ alwaysApply: true
 - **`Invite.token`:** при стабилизации API сузить **`max_length`** до реалистичного размера токена (если не хранится сырой длинный секрет).
 - **Безопасность (позже):** хранить в БД **хэш** токена инвайта, «сырой» токен показывать один раз при создании — отдельный этап после рабочего MVP.
 - **`wishlist/settings.py`:** `DEBUG` как **bool** из строки env; **`load_dotenv(BASE_DIR / ".env")`** (явный путь под `backend/.env`); убрать отладочный **`print(ALLOWED_HOSTS)`**, если ещё есть.
-- **Декомпозиция без спешки:** вынести логику активации в **`invites/services.py`** (или чистую функцию `activate_invite(...)`) и оставить в `api.py` тонкую обёртку — **когда пользователь захочет** или когда появятся вторые сценарии (бот, админка); до этого допустим «плоский» код в одном месте.
 
 ## Итог
 

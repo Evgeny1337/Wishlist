@@ -1,20 +1,8 @@
 import json
-from typing import Optional
 
-from pydantic import BaseModel, ValidationError
+from invites.pydantic_models import UserModel
 from invites.telegram_init_data import InvalidInitData
-
-class UserModel(BaseModel):
-    id: int
-    is_bot: Optional[bool] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    username: Optional[str] = None
-    language_code: Optional[str] = None
-    is_premium: Optional[bool] = None
-    added_to_attachment_menu: Optional[bool] = None
-    allows_write_to_pm: Optional[bool] = None
-    photo_url: Optional[str] = None
+from pydantic import ValidationError
 
 
 def telegram_user_init_data(pairs: dict[str, str]) -> UserModel:
@@ -33,5 +21,3 @@ def telegram_user_init_data(pairs: dict[str, str]) -> UserModel:
     if user.id <= 0:
         raise InvalidInitData("Не корректный id user")
     return user
-
-
