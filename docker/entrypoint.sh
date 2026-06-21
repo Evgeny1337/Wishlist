@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
-python manage.py migtate --noinput
+python manage.py migrate --noinput
 exec gunicorn wishlist.wsgi:application \
   --bind 0.0.0.0:8000 \
   --workers 2 \
