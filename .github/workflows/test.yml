@@ -1,0 +1,36 @@
+name: test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: wishlist
+          POSTGRES_USER: wishlist
+          POSTGRES_DB: wishlist
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - run: pip install poetry
+      - run: poetry install
+      - run: poetry run pytest -q
+    env:
+      POSTGRES_HOST: 'localhost'
+      POSTGRES_PORT: 5432
+      SECRET_KEY: 'test'
+      TELEGRAM_BOT_TOKEN: 'test'
+      POSTGRES_PASSWORD: 'wishlist'
+      POSTGRES_USER: 'wishlist'
+      POSTGRES_DB: 'wishlist'
+
