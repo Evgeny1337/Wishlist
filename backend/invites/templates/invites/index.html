@@ -18,6 +18,11 @@
         log("origin: " + location.origin);
         let webApp = window.Telegram.WebApp
         webApp.ready()
+        log("initData length: " + (webApp.initData ? webApp.initData.length : 0));
+        if (!webApp.initData) {
+            log("No initData — not opened as Mini App?");
+        }
+
         if(webApp.initData){
             fetch(`${location.origin}/api/telegram_webapp/activate-invite`,{
                 method: "POST",
