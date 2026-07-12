@@ -6,8 +6,16 @@
     <title>Title</title>
 </head>
 <body>
+      <h1 id="title">JS not run yet</h1>
+      <pre id="log"></pre>
     <a id="test" style="display: none">Hello</a>
-    <script type="module">
+    <script>
+        var logEl = document.getElementById("log");
+        function log(msg) {
+            logEl.textContent += msg + "\n";
+        }
+        document.getElementById("title").textContent = "JS is running";
+        log("origin: " + location.origin);
         let webApp = window.Telegram.WebApp
         webApp.ready()
         if(webApp.initData){
