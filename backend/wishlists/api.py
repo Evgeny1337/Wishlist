@@ -4,14 +4,19 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt, ValidationError
 from django.http import HttpRequest
-from ninja import Router, Schema, ModelSchema, Field
+from ninja import Router, Schema, ModelSchema, Field, Status
 
 from django.conf import settings
 from invites.models import TelegramProfile
 from invites.telegram_init_data import verify_init_data
 from invites.telegram_webapp_user import telegram_user_init_data
 from .models import WishList
+
 wishlists_router = Router()
+
+
+class ErrorSchema(Schema):
+    detail: dict[str,str] = Field(description='Ошибка валидации')
 
 
 class WishListDeletedResponse(Schema):
@@ -55,8 +60,8 @@ def validate_wishlist_request(request: HttpRequest) -> WishListDeleteGet:
     '/',
     response={
         HTTPStatus.CREATED: WishListResponseSchema,
-        HTTPStatus.NOT_FOUND: str
-    }
+        HTTPStatus.BAD_REQUEST: ErrorSchema
+    },
 )
 def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
     profile = get_profile(data.init_data)
@@ -64,7 +69,7 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
         owner=profile,
         title=data.title,
     )
-    return HTTPStatus.CREATED, wishlist
+    return Status(HTTPStatus.CREATED, wishlist)
 
 
 @wishlists_router.get(
@@ -73,13 +78,13 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
         HTTPStatus.OK: WishListResponseSchema,
         HTTPStatus.NOT_FOUND: str,
         HTTPStatus.NOT_IMPLEMENTED: str
-    }
+    },
 )
 def get_wishlist(request: HttpRequest):
     validate_data = validate_wishlist_request(request)
     profile = get_profile(validate_data.init_data)
     wishlist = get_object_or_404(WishList, owner=profile, id=validate_data.wishlist_id)
-    return HTTPStatus.OK, wishlist
+    return Status(HTTPStatus.OK, wishlist)
 
 
 @wishlists_router.delete(
@@ -87,7 +92,7 @@ def get_wishlist(request: HttpRequest):
     response={
         HTTPStatus.OK: WishListDeletedResponse,
         HTTPStatus.NOT_FOUND: str,
-    }
+    },
 )
 def delete_wishlist(request: HttpRequest):
     validate_data = validate_wishlist_request(request)
