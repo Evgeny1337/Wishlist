@@ -8,7 +8,7 @@ from ninja import Router, Schema, ModelSchema, Field, Status
 
 from django.conf import settings
 from invites.models import TelegramProfile
-from invites.telegram_init_data import verify_init_data
+from invites.telegram_init_data import verify_init_data, InvalidInitData
 from invites.telegram_webapp_user import telegram_user_init_data
 from .models import WishList
 
@@ -26,7 +26,7 @@ class WishListDeletedResponse(Schema):
 
 class WishListCreateRequest(Schema):
     init_data: str = Field(description='Авторизационные данные ')
-    title: str = Field(description='Заголовок')
+    title: str = Field(description='Заголовок', min_length=1)
 
 class WishListDeleteGet(Schema):
     init_data: str = Field(description='Авторизационные данные ')
@@ -39,12 +39,14 @@ class WishListResponseSchema(ModelSchema):
         fields = ['id', 'owner', 'title', 'created_at']
 
 def get_profile(init_data: str) -> TelegramProfile:
-    if init_data is None:
+    if  not init_data:
         raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY,"пустой initData")
-    pairs = verify_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
-    user = telegram_user_init_data(pairs)
-    profile = get_object_or_404(TelegramProfile, telegram_user_id=user.id)
-    return profile
+    try:
+        pairs = verify_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
+        user = telegram_user_init_data(pairs)
+    except InvalidInitData as exc:
+        raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc)) from exc
+    return get_object_or_404(TelegramProfile, telegram_user_id=user.id)
 
 def validate_wishlist_request(request: HttpRequest) -> WishListDeleteGet:
     try:
@@ -60,7 +62,8 @@ def validate_wishlist_request(request: HttpRequest) -> WishListDeleteGet:
     '/',
     response={
         HTTPStatus.CREATED: WishListResponseSchema,
-        HTTPStatus.BAD_REQUEST: ErrorSchema
+        HTTPStatus.BAD_REQUEST: ErrorSchema,
+        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema
     },
 )
 def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
