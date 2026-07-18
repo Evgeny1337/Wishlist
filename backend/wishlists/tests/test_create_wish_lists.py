@@ -31,7 +31,7 @@ def test_wishlist_create_invalid_init_data(api_client):
 
 @pytest.mark.django_db
 def test_wishlist_create_empty_title(api_client, profile):
-    with patch('wishlists.api.get_profile') as mock_get_profile:
+    with patch('wishlists.wishlist_api.get_profile') as mock_get_profile:
         mock_get_profile.return_value = profile
         response = api_client.post('/api/wishlists/', payload={'init_data':'', 'title':''})
         body = response.json()

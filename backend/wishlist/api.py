@@ -2,7 +2,7 @@ from ninja import NinjaAPI
 from pydantic import BaseModel
 import invites.api
 import invites.telegram_webapp
-from wishlists.api import wishlists_router
+from wishlists.wishlist_api import wishlists_router
 
 
 api = NinjaAPI()

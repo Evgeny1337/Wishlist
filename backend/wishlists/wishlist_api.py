@@ -1,52 +1,19 @@
 from http import HTTPStatus
+from typing import List
 
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
-from pydantic import PositiveInt, ValidationError
+from pydantic import ValidationError, PositiveInt
 from django.http import HttpRequest
-from ninja import Router, Schema, ModelSchema, Field, Status
+from ninja import Router, Status
 
-from django.conf import settings
-from invites.models import TelegramProfile
-from invites.telegram_init_data import verify_init_data, InvalidInitData
-from invites.telegram_webapp_user import telegram_user_init_data
-from .models import WishList
+from .helpers import get_profile
+from .models import WishList, Wish
+from .schemas import WishListDeleteGet, WishListResponseSchema, ErrorSchema, WishListCreateRequest, \
+    WishListDeletedResponse, WishCreateRequest, WishCreateResponse
 
 wishlists_router = Router()
 
-
-class ErrorSchema(Schema):
-    detail: dict[str,str] = Field(description='Ошибка валидации')
-
-
-class WishListDeletedResponse(Schema):
-    deleted_count: PositiveInt = Field(description='Количиство удаленных')
-    details: dict[str, int] = Field(description='Количество удаленных объектов')
-
-
-class WishListCreateRequest(Schema):
-    init_data: str = Field(description='Авторизационные данные ')
-    title: str = Field(description='Заголовок', min_length=1)
-
-class WishListDeleteGet(Schema):
-    init_data: str = Field(description='Авторизационные данные ', min_length=1)
-    wishlist_id: PositiveInt = Field(description="ID Вишлиста")
-
-
-class WishListResponseSchema(ModelSchema):
-    class Meta:
-        model = WishList
-        fields = ['id', 'owner', 'title', 'created_at']
-
-def get_profile(init_data: str) -> TelegramProfile:
-    if  not init_data:
-        raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY,"пустой initData")
-    try:
-        pairs = verify_init_data(init_data, settings.TELEGRAM_BOT_TOKEN)
-        user = telegram_user_init_data(pairs)
-    except InvalidInitData as exc:
-        raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc)) from exc
-    return get_object_or_404(TelegramProfile, telegram_user_id=user.id)
 
 def validate_wishlist_request(request: HttpRequest) -> WishListDeleteGet:
     try:
@@ -80,7 +47,7 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
     response={
         HTTPStatus.OK: WishListResponseSchema,
         HTTPStatus.NOT_FOUND: str,
-        HTTPStatus.NOT_IMPLEMENTED: str
+        HTTPStatus.UNPROCESSABLE_ENTITY: str
     },
 )
 def get_wishlist(request: HttpRequest):
@@ -104,3 +71,40 @@ def delete_wishlist(request: HttpRequest):
     if deleted_count == 0:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такого вишлиста нету")
     return WishListDeletedResponse(details=details, deleted_count=deleted_count)
+
+
+@wishlists_router.post(
+    '/{wishlist_id}/wishes/',
+    response={
+        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
+        HTTPStatus.NOT_FOUND: str,
+        HTTPStatus.CREATED: WishCreateResponse
+    }
+)
+def create_wish(request: HttpRequest, wishlist_id:PositiveInt, data: WishCreateRequest):
+    profile = get_profile(data.init_data)
+    wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
+    wish = Wish.objects.create(
+        wishlist=wishlist,
+        title=data.title,
+        note=data.note,
+        url=str(data.url) if data.url else "",
+    )
+    return Status(HTTPStatus.CREATED, wish)
+
+
+@wishlists_router.get(
+    '/{wishlist_id}/wishes/',
+    response={
+        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
+        HTTPStatus.NOT_FOUND: str,
+        HTTPStatus.OK: List[WishCreateResponse]
+    }
+)
+def get_wishes(request: HttpRequest, wishlist_id: PositiveInt):
+    init_data = request.headers.get('init_data') or ""
+    profile = get_profile(init_data)
+    wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
+    wishes = list(Wish.objects.filter(wishlist=wishlist))
+    return Status(HTTPStatus.OK, wishes)
+

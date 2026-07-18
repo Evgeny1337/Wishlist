@@ -1,4 +1,3 @@
-import pdb
 from http import HTTPStatus
 
 import pytest
