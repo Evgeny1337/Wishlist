@@ -29,7 +29,7 @@ class WishListCreateRequest(Schema):
     title: str = Field(description='Заголовок', min_length=1)
 
 class WishListDeleteGet(Schema):
-    init_data: str = Field(description='Авторизационные данные ')
+    init_data: str = Field(description='Авторизационные данные ', min_length=1)
     wishlist_id: PositiveInt = Field(description="ID Вишлиста")
 
 
@@ -51,11 +51,11 @@ def get_profile(init_data: str) -> TelegramProfile:
 def validate_wishlist_request(request: HttpRequest) -> WishListDeleteGet:
     try:
         return WishListDeleteGet.model_validate({
-            'init_data': request.headers.get('initData') or '',
-            'wishlist_id': request.headers.get('wishListId')
+            'init_data': request.headers.get('init_data') or '',
+            'wishlist_id': request.headers.get('wishlist_id')
         })
-    except ValidationError as e:
-        raise HttpError(422, e.errors()) from e
+    except ValidationError:
+        raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY, 'Ошибка валидации параметров')
 
 
 @wishlists_router.post(

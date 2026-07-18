@@ -1,4 +1,4 @@
-import json
+
 from http import HTTPStatus
 
 from django.test import override_settings
@@ -9,25 +9,6 @@ import pytest
 
 from invites.tests.helpers import BOT_TOKEN_VERIFY, fresh_signed_init_data_user_id
 from wishlists.models import WishList
-
-
-@pytest.fixture()
-def profile(db):
-    return TelegramProfile.objects.create(telegram_user_id=1,)
-
-
-@pytest.fixture
-def api_client(client):
-    class ApiClient:
-        def post(self, url, payload, **kw):
-            return client.post(
-                url,
-                data=json.dumps(payload),
-                content_type="application/json",
-                **kw,
-            )
-    return ApiClient()
-
 
 @pytest.mark.django_db
 def test_wishlist_create_empty_init_data(api_client):
