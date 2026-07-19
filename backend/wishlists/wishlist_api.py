@@ -5,12 +5,12 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import ValidationError, PositiveInt
 from django.http import HttpRequest
-from ninja import Router, Status
+from ninja import Router, Status, Path, Header
 
 from .helpers import get_profile
 from .models import WishList, Wish
 from .schemas import WishListDeleteGet, WishListResponseSchema, ErrorSchema, WishListCreateRequest, \
-    WishListDeletedResponse, WishCreateRequest, WishCreateResponse
+    DeletedResponse, WishCreateRequest, WishCreateResponse, PathWish
 
 wishlists_router = Router()
 
@@ -60,7 +60,7 @@ def get_wishlist(request: HttpRequest):
 @wishlists_router.delete(
     '/',
     response={
-        HTTPStatus.OK: WishListDeletedResponse,
+        HTTPStatus.OK: DeletedResponse,
         HTTPStatus.NOT_FOUND: str,
     },
 )
@@ -70,7 +70,7 @@ def delete_wishlist(request: HttpRequest):
     deleted_count, details = WishList.objects.filter(owner=profile, id=validate_data.wishlist_id).delete()
     if deleted_count == 0:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такого вишлиста нету")
-    return WishListDeletedResponse(details=details, deleted_count=deleted_count)
+    return DeletedResponse(details=details, deleted_count=deleted_count)
 
 
 @wishlists_router.post(
@@ -107,4 +107,21 @@ def get_wishes(request: HttpRequest, wishlist_id: PositiveInt):
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     wishes = list(Wish.objects.filter(wishlist=wishlist))
     return Status(HTTPStatus.OK, wishes)
+
+
+@wishlists_router.delete(
+    '/{wishlist_id}/wishes/{wish_id}/',
+    response={
+        HTTPStatus.OK: DeletedResponse,
+        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
+        HTTPStatus.NOT_FOUND: str,
+    }
+)
+def delete_wish(request: HttpRequest, path: Path[PathWish], init_data: Header[str]):
+    profile = get_profile(init_data)
+    wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
+    deleted_count, details = Wish.objects.filter(wishlist=wishlist, id=path.wish_id).delete()
+    if deleted_count == 0:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Нет такого wish")
+    return DeletedResponse(details=details, deleted_count=deleted_count)
 

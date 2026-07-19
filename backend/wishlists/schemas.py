@@ -8,7 +8,7 @@ class ErrorSchema(Schema):
     detail: dict[str,str] = Field(description='Ошибка валидации')
 
 
-class WishListDeletedResponse(Schema):
+class DeletedResponse(Schema):
     deleted_count: PositiveInt = Field(description='Количиство удаленных')
     details: dict[str, int] = Field(description='Количество удаленных объектов')
 
@@ -40,6 +40,10 @@ class WishCreateResponse(ModelSchema):
     class Meta:
         model = Wish
         fields = ['id', 'title', 'url', 'note', 'created_at']
+
+class PathWish(Schema):
+    wishlist_id:int = Field(description='ID Вишлиста')
+    wish_id:int = Field(description="ID Желания")
 
 
 
