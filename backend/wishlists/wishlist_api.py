@@ -3,26 +3,16 @@ from typing import List
 
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
-from pydantic import ValidationError, PositiveInt
+from pydantic import PositiveInt
 from django.http import HttpRequest
 from ninja import Router, Status, Path, Header
 
 from .helpers import get_profile
 from .models import WishList, Wish
-from .schemas import WishListDeleteGet, WishListResponseSchema, ErrorSchema, WishListCreateRequest, \
+from .schemas import WishListResponseSchema, ErrorSchema, WishListCreateRequest, \
     DeletedResponse, WishCreateRequest, WishCreateResponse, PathWish
 
 wishlists_router = Router()
-
-
-def validate_wishlist_request(request: HttpRequest) -> WishListDeleteGet:
-    try:
-        return WishListDeleteGet.model_validate({
-            'init_data': request.headers.get('init_data') or '',
-            'wishlist_id': request.headers.get('wishlist_id')
-        })
-    except ValidationError:
-        raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY, 'Ошибка валидации параметров')
 
 
 @wishlists_router.post(
@@ -43,31 +33,38 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
 
 
 @wishlists_router.get(
-    '/',
+    '/{wishlist_id}/',
     response={
         HTTPStatus.OK: WishListResponseSchema,
         HTTPStatus.NOT_FOUND: str,
-        HTTPStatus.UNPROCESSABLE_ENTITY: str
+        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
     },
 )
-def get_wishlist(request: HttpRequest):
-    validate_data = validate_wishlist_request(request)
-    profile = get_profile(validate_data.init_data)
-    wishlist = get_object_or_404(WishList, owner=profile, id=validate_data.wishlist_id)
+def get_wishlist(
+    request: HttpRequest,
+    wishlist_id: PositiveInt,
+    init_data: Header[str],
+):
+    profile = get_profile(init_data)
+    wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     return Status(HTTPStatus.OK, wishlist)
 
 
 @wishlists_router.delete(
-    '/',
+    '/{wishlist_id}/',
     response={
         HTTPStatus.OK: DeletedResponse,
         HTTPStatus.NOT_FOUND: str,
+        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
     },
 )
-def delete_wishlist(request: HttpRequest):
-    validate_data = validate_wishlist_request(request)
-    profile = get_profile(validate_data.init_data)
-    deleted_count, details = WishList.objects.filter(owner=profile, id=validate_data.wishlist_id).delete()
+def delete_wishlist(
+    request: HttpRequest,
+    wishlist_id: PositiveInt,
+    init_data: Header[str],
+):
+    profile = get_profile(init_data)
+    deleted_count, details = WishList.objects.filter(owner=profile, id=wishlist_id).delete()
     if deleted_count == 0:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такого вишлиста нету")
     return DeletedResponse(details=details, deleted_count=deleted_count)
@@ -81,7 +78,7 @@ def delete_wishlist(request: HttpRequest):
         HTTPStatus.CREATED: WishCreateResponse
     }
 )
-def create_wish(request: HttpRequest, wishlist_id:PositiveInt, data: WishCreateRequest):
+def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreateRequest):
     profile = get_profile(data.init_data)
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     wish = Wish.objects.create(
@@ -101,8 +98,11 @@ def create_wish(request: HttpRequest, wishlist_id:PositiveInt, data: WishCreateR
         HTTPStatus.OK: List[WishCreateResponse]
     }
 )
-def get_wishes(request: HttpRequest, wishlist_id: PositiveInt):
-    init_data = request.headers.get('init_data') or ""
+def get_wishes(
+    request: HttpRequest,
+    wishlist_id: PositiveInt,
+    init_data: Header[str],
+):
     profile = get_profile(init_data)
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     wishes = list(Wish.objects.filter(wishlist=wishlist))
@@ -124,4 +124,3 @@ def delete_wish(request: HttpRequest, path: Path[PathWish], init_data: Header[st
     if deleted_count == 0:
         raise HttpError(HTTPStatus.NOT_FOUND, "Нет такого wish")
     return DeletedResponse(details=details, deleted_count=deleted_count)
-

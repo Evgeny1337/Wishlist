@@ -17,10 +17,6 @@ class WishListCreateRequest(Schema):
     init_data: str = Field(description='Авторизационные данные')
     title: str = Field(description='Заголовок', min_length=1)
 
-class WishListDeleteGet(Schema):
-    init_data: str = Field(description='Авторизационные данные', min_length=1)
-    wishlist_id: PositiveInt = Field(description="ID Вишлиста")
-
 
 class WishListResponseSchema(ModelSchema):
     class Meta:

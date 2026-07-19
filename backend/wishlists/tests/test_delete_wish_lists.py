@@ -8,14 +8,27 @@ from wishlists.models import WishList
 
 
 @pytest.mark.django_db
-def test_delete_wishlist_invalid_params(api_client):
+def test_delete_wishlist_invalid_id(api_client):
     response = api_client.delete(
-        '/api/wishlists/',
-        headers={ "wishlist_id": ""}
+        "/api/wishlists/test/",
+        headers={"init_data": "test"},
     )
     body = response.json()
-    assert 'detail' in body
-    assert body['detail'] == 'Ошибка валидации параметров'
+    assert "detail" in body
+    assert body["detail"][0]["loc"] == ["path", "wishlist_id"]
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.django_db
+def test_delete_wishlist_missing_init_data(api_client):
+    response = api_client.delete(
+        "/api/wishlists/1/",
+        headers={},
+    )
+    body = response.json()
+    assert "detail" in body
+    assert body["detail"][0]["type"] == "missing"
+    assert body["detail"][0]["loc"] == ["header", "init_data"]
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
@@ -27,12 +40,12 @@ def test_delete_wishlist_wrong_id(
 ):
     init_data = fresh_signed_init_data_user_id(1)
     response = api_client.delete(
-        '/api/wishlists/',
-        headers={ "wishlist_id": str(2), "init_data": init_data}
+        "/api/wishlists/2/",
+        headers={"init_data": init_data},
     )
     body = response.json()
-    assert 'detail' in body
-    assert body['detail'] == 'Такого вишлиста нету'
+    assert "detail" in body
+    assert body["detail"] == "Такого вишлиста нету"
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
@@ -48,13 +61,13 @@ def test_delete_wishlist_someone_else(
     wishlist_1 = wishlist_factory(telegram_profile=profile_1)
     init_data = fresh_signed_init_data_user_id(2)
     response = api_client.delete(
-        '/api/wishlists/',
-        headers={ "wishlist_id": str(wishlist_1.id), "init_data": init_data}
+        f"/api/wishlists/{wishlist_1.id}/",
+        headers={"init_data": init_data},
     )
     body = response.json()
-    assert body['detail'] == 'Такого вишлиста нету'
+    assert body["detail"] == "Такого вишлиста нету"
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert WishList.objects.filter(id=str(wishlist_1.id)).exists()
+    assert WishList.objects.filter(id=wishlist_1.id).exists()
 
 
 @override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
@@ -67,11 +80,11 @@ def test_delete_wishlist_happy_path(
     wishlist = wishlist_factory(telegram_profile=profile)
     init_data = fresh_signed_init_data_user_id(1)
     response = api_client.delete(
-        '/api/wishlists/',
-        headers={ "wishlist_id": str(wishlist.id), "init_data": init_data}
+        f"/api/wishlists/{wishlist.id}/",
+        headers={"init_data": init_data},
     )
     body = response.json()
-    assert 'deleted_count' in body
-    assert body['deleted_count'] == 1
+    assert "deleted_count" in body
+    assert body["deleted_count"] == 1
     assert response.status_code == HTTPStatus.OK
     assert not WishList.objects.filter(owner=profile, id=wishlist.id).exists()
