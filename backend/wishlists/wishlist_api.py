@@ -9,18 +9,30 @@ from ninja import Router, Status, Path, Header
 
 from .helpers import get_profile
 from .models import WishList, Wish
-from .schemas import WishListResponseSchema, ErrorSchema, WishListCreateRequest, \
-    DeletedResponse, WishCreateRequest, WishCreateResponse, PathWish
+from .schemas import (
+    WishListResponseSchema,
+    DetailSchema,
+    ValidationErrorSchema,
+    WishListCreateRequest,
+    DeletedResponse,
+    WishCreateRequest,
+    WishCreateResponse,
+    PathWish,
+)
 
 wishlists_router = Router()
 
 
+_UNPROCESSABLE = DetailSchema | ValidationErrorSchema
+
+
 @wishlists_router.post(
-    '/',
+    "/",
     response={
         HTTPStatus.CREATED: WishListResponseSchema,
-        HTTPStatus.BAD_REQUEST: ErrorSchema,
-        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema
+        HTTPStatus.BAD_REQUEST: DetailSchema,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
     },
 )
 def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
@@ -33,11 +45,25 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
 
 
 @wishlists_router.get(
-    '/{wishlist_id}/',
+    "/",
+    response={
+        HTTPStatus.OK: List[WishListResponseSchema],
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    },
+)
+def get_wishlists(request: HttpRequest, init_data: Header[str]):
+    profile = get_profile(init_data)
+    wishlists = WishList.objects.filter(owner=profile)
+    return Status(HTTPStatus.OK, wishlists)
+
+
+@wishlists_router.get(
+    "/{wishlist_id}/",
     response={
         HTTPStatus.OK: WishListResponseSchema,
-        HTTPStatus.NOT_FOUND: str,
-        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
 )
 def get_wishlist(
@@ -51,11 +77,11 @@ def get_wishlist(
 
 
 @wishlists_router.delete(
-    '/{wishlist_id}/',
+    "/{wishlist_id}/",
     response={
         HTTPStatus.OK: DeletedResponse,
-        HTTPStatus.NOT_FOUND: str,
-        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
 )
 def delete_wishlist(
@@ -71,12 +97,12 @@ def delete_wishlist(
 
 
 @wishlists_router.post(
-    '/{wishlist_id}/wishes/',
+    "/{wishlist_id}/wishes/",
     response={
-        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
-        HTTPStatus.NOT_FOUND: str,
-        HTTPStatus.CREATED: WishCreateResponse
-    }
+        HTTPStatus.CREATED: WishCreateResponse,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    },
 )
 def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreateRequest):
     profile = get_profile(data.init_data)
@@ -91,12 +117,12 @@ def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreate
 
 
 @wishlists_router.get(
-    '/{wishlist_id}/wishes/',
+    "/{wishlist_id}/wishes/",
     response={
-        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
-        HTTPStatus.NOT_FOUND: str,
-        HTTPStatus.OK: List[WishCreateResponse]
-    }
+        HTTPStatus.OK: List[WishCreateResponse],
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    },
 )
 def get_wishes(
     request: HttpRequest,
@@ -110,12 +136,12 @@ def get_wishes(
 
 
 @wishlists_router.delete(
-    '/{wishlist_id}/wishes/{wish_id}/',
+    "/{wishlist_id}/wishes/{wish_id}/",
     response={
         HTTPStatus.OK: DeletedResponse,
-        HTTPStatus.UNPROCESSABLE_ENTITY: ErrorSchema,
-        HTTPStatus.NOT_FOUND: str,
-    }
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    },
 )
 def delete_wish(request: HttpRequest, path: Path[PathWish], init_data: Header[str]):
     profile = get_profile(init_data)
