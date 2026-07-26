@@ -4,7 +4,7 @@ import pytest
 from django.test import override_settings
 
 from invites.tests.helpers import fresh_signed_init_data_user_id, BOT_TOKEN_VERIFY
-from wishlists.models import  Wish
+from wishlists.models import Wish
 
 
 @pytest.mark.django_db
@@ -219,4 +219,238 @@ def test_delete_wish_empty_init_data(
     assert body['detail'][0]['loc'] == ['header', 'init_data']
     assert body['detail'][0]['msg'] == 'Field required'
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_get_wish_happy_path(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.get(
+        f'/api/wishlists/{wishlist.id}/wishes/{wish.id}/',
+        headers={'init_data':init_data},
+    )
+    body = response.json()
+    assert body['id'] == wish.id
+    assert response.status_code == HTTPStatus.OK
+    assert Wish.objects.filter(wishlist=wishlist, id=wish.id).exists()
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_get_wish_someone_else_wishlist(
+        api_client,
+        profile_factory,
+        wishlist_factory,
+        wish_factory
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    profile_factory(telegram_user_id=1)
+    profile_2 = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=profile_2)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.get(
+        f'/api/wishlists/{wishlist.id}/wishes/{wish.id}/',
+        headers={'init_data':init_data},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_get_wish_wrong(
+        api_client,
+        profile,
+        wishlist_factory,
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    response = api_client.get(
+        f'/api/wishlists/{wishlist.id}/wishes/{1}/',
+        headers={'init_data':init_data},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_get_wish_invalid_init_data(
+        api_client,
+):
+    response = api_client.get(
+        f'/api/wishlists/{1}/wishes/{1}/',
+        headers={'init_data':''},
+    )
+    body = response.json()
+    assert 'detail' in body
+    assert body['detail'] == 'пустой initData'
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_happy_path(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist, note="keep-me")
+    response = api_client.patch(
+        f'/api/wishlists/{wishlist.id}/wishes/{wish.id}/',
+        headers={'init_data': init_data},
+        payload={"title": "test2", "url": "https://testurl.com"},
+    )
+    body = response.json()
+    assert body["title"] == "test2"
+    assert body["url"] == "https://testurl.com/"
+    assert body["note"] == "keep-me"
+    assert response.status_code == HTTPStatus.OK
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_empty_body(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(
+        wishlist=wishlist,
+        title="original",
+        url="https://original.ru/",
+        note="original-note",
+    )
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers={"init_data": init_data},
+        payload={},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["id"] == wish.id
+    assert body["title"] == "original"
+    assert body["url"] == "https://original.ru/"
+    assert body["note"] == "original-note"
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_null_url(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist, url="https://to-clear.ru/")
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers={"init_data": init_data},
+        payload={"url": None},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["url"] == ""
+    wish.refresh_from_db()
+    assert wish.url == ""
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_someone_else_wishlist(
+        api_client,
+        profile_factory,
+        wishlist_factory,
+        wish_factory
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    profile_factory(telegram_user_id=1)
+    profile_2 = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=profile_2)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.patch(
+        f'/api/wishlists/{wishlist.id}/wishes/{wish.id}/',
+        headers={'init_data': init_data},
+        payload={"title": "hacked"},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_wrong_wish(
+        api_client,
+        profile,
+        wishlist_factory,
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    response = api_client.patch(
+        f'/api/wishlists/{wishlist.id}/wishes/99999/',
+        headers={'init_data': init_data},
+        payload={},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_with_empty_title(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.patch(
+        f'/api/wishlists/{wishlist.id}/wishes/{wish.id}/',
+        headers={'init_data': init_data},
+        payload={"title": ""},
+    )
+    body = response.json()
+    assert 'detail' in body
+    assert body['detail'][0]['type'] == 'string_too_short'
+    assert body['detail'][0]['loc'] == ['body', 'body', 'title']
+    assert body['detail'][0]['msg'] == 'String should have at least 1 character'
+    assert body['detail'][0]['ctx'] == {'min_length': 1}
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_update_wish_empty_init_data(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.patch(
+        f'/api/wishlists/{wishlist.id}/wishes/{wish.id}/',
+        headers={},
+        payload={"title": "test3"},
+    )
+    body = response.json()
+    assert 'detail' in body
+    assert body['detail'][0]['type'] == 'missing'
+    assert body['detail'][0]['loc'] == ['header', 'init_data']
+    assert body['detail'][0]['msg'] == 'Field required'
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
 

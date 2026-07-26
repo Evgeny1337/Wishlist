@@ -1,8 +1,11 @@
+from http import HTTPStatus
+
 from django.conf import settings
 from django.db import transaction
 from ninja import Router
-from ninja.errors import HttpError
+from ninja.errors import HttpError, ValidationError
 
+from invites.jwt_tokens import issue_token_pair
 from invites.pydantic_models import (
     ActivateViaWebAppIn,
     ActivateViaWebAppOut,
@@ -47,9 +50,16 @@ def activate_invite_via_init_data_view(request, body: ActivateViaWebAppIn):
     with transaction.atomic():
         used_count, profile = apply_invite_token_for_webapp_user(body.token, web_user)
 
-    return ActivateViaWebAppOut(
-        ok=True,
-        used_count=used_count,
-        token=body.token,
-        telegram_user_id=profile.telegram_user_id,
-    )
+    try:
+        jwt_pairs = issue_token_pair(telegram_user_id=profile.telegram_user_id)
+        return ActivateViaWebAppOut(
+            ok=True,
+            used_count=used_count,
+            token=body.token,
+            telegram_user_id=profile.telegram_user_id,
+            tokens=jwt_pairs,
+        )
+    except ValidationError:
+        raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY, "Ошибка создания JWT")
+
+

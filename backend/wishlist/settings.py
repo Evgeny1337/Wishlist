@@ -30,6 +30,11 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost'
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN','')
 
+JWT_SECRET = os.getenv('JWT_SECRET','')
+
+JWT_ACCESS_TTL_SEC = os.getenv('JWT_ACCESS_TTL_SEC', 3600)
+
+JWT_REFRESH_TTL_SEC =os.getenv('JWT_REFRESH_TTL_SEC', 2592000)
 # Application definition
 
 INSTALLED_APPS = [

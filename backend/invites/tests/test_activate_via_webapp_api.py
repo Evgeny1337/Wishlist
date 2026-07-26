@@ -18,7 +18,12 @@ from .helpers import (
 
 
 @pytest.mark.django_db
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@override_settings(
+    TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY,
+    JWT_SECRET="test-jwt-secret-for-activate-via-webapp",
+    JWT_ACCESS_TTL_SEC=3600,
+    JWT_REFRESH_TTL_SEC=2592000,
+)
 def test_activate_via_webapp_success(client):
     """init_data задаёт telegram_user_id=1 — см. fresh_signed_init_data / helpers."""
     invite = Invite.objects.create(
@@ -35,12 +40,17 @@ def test_activate_via_webapp_success(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data == {
-        "ok": True,
-        "used_count": 1,
-        "token": invite.token,
-        "telegram_user_id": 1,
-    }
+    assert data["ok"] is True
+    assert data["used_count"] == 1
+    assert data["token"] == invite.token
+    assert data["telegram_user_id"] == 1
+    tokens = data["tokens"]
+    assert tokens["token_type"] == "Bearer"
+    assert tokens["expires_in"] == 3600
+    assert tokens["refresh_expires_in"] == 2592000
+    assert isinstance(tokens["access_token"], str) and tokens["access_token"]
+    assert isinstance(tokens["refresh_token"], str) and tokens["refresh_token"]
+    assert tokens["access_token"] != tokens["refresh_token"]
     invite.refresh_from_db()
     assert invite.used_count == 1
     profile = TelegramProfile.objects.get(telegram_user_id=1)

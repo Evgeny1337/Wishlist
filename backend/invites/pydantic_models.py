@@ -1,7 +1,14 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+
+class TokenPair(BaseModel):
+    access_token: str = Field(description="Access Token (короткий промежуток времени)")
+    refresh_token: str = Field(description="Refresh Token (длинный промежуток времени)")
+    token_type: str = Field(description="Тип токен", default="Bearer")
+    expires_in: int = Field(description="Время жизни Access Token")
+    refresh_expires_in: int = Field(description="Время жи Refresh Token")
 
 class TelegramUser(BaseModel):
     telegram_user_id: int
@@ -34,6 +41,7 @@ class ActivateViaWebAppOut(BaseModel):
     used_count: int
     token: str
     telegram_user_id: int
+    tokens: TokenPair
 
 
 class UserModel(BaseModel):

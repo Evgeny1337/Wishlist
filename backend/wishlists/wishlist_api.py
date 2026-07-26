@@ -16,8 +16,8 @@ from .schemas import (
     WishListCreateRequest,
     DeletedResponse,
     WishCreateRequest,
-    WishCreateResponse,
-    PathWish,
+    WishResponse,
+    PathWish, WishUpdateRequest,
 )
 
 wishlists_router = Router()
@@ -99,7 +99,7 @@ def delete_wishlist(
 @wishlists_router.post(
     "/{wishlist_id}/wishes/",
     response={
-        HTTPStatus.CREATED: WishCreateResponse,
+        HTTPStatus.CREATED: WishResponse,
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
         HTTPStatus.NOT_FOUND: DetailSchema,
     },
@@ -117,9 +117,28 @@ def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreate
 
 
 @wishlists_router.get(
+    "/{wishlist_id}/wishes/{wish_id}/",
+    response={
+        HTTPStatus.OK: WishResponse,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def get_wish(
+        request: HttpRequest,
+        path: Path[PathWish],
+        init_data: Header[str],
+):
+    profile = get_profile(init_data)
+    wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
+    wish = get_object_or_404(Wish, wishlist=wishlist, id=path.wish_id)
+    return Status(HTTPStatus.OK, wish)
+
+
+@wishlists_router.get(
     "/{wishlist_id}/wishes/",
     response={
-        HTTPStatus.OK: List[WishCreateResponse],
+        HTTPStatus.OK: List[WishResponse],
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
         HTTPStatus.NOT_FOUND: DetailSchema,
     },
@@ -143,10 +162,41 @@ def get_wishes(
         HTTPStatus.NOT_FOUND: DetailSchema,
     },
 )
-def delete_wish(request: HttpRequest, path: Path[PathWish], init_data: Header[str]):
+def delete_wish(
+        request: HttpRequest,
+        path: Path[PathWish],
+        init_data: Header[str]
+):
     profile = get_profile(init_data)
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
     deleted_count, details = Wish.objects.filter(wishlist=wishlist, id=path.wish_id).delete()
     if deleted_count == 0:
         raise HttpError(HTTPStatus.NOT_FOUND, "Нет такого wish")
     return DeletedResponse(details=details, deleted_count=deleted_count)
+
+
+@wishlists_router.patch(
+    "/{wishlist_id}/wishes/{wish_id}/",
+    response={
+        HTTPStatus.OK: WishResponse,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def update_wish(
+        request: HttpRequest,
+        path: Path[PathWish],
+        init_data: Header[str],
+        body: WishUpdateRequest,
+):
+    profile = get_profile(init_data)
+    wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
+    wish = get_object_or_404(Wish, id=path.wish_id, wishlist=wishlist)
+    updates = body.model_dump(exclude_unset=True)
+    if "url" in updates:
+        updates["url"] = str(updates["url"]) if updates["url"] else ""
+    if updates:
+        for attr, value in updates.items():
+            setattr(wish, attr, value)
+        wish.save(update_fields=list(updates))
+    return Status(HTTPStatus.OK, wish)

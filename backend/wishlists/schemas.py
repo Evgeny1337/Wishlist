@@ -7,14 +7,10 @@ from wishlists.models import WishList, Wish
 
 
 class DetailSchema(Schema):
-    """Тело ошибок HttpError / Http404: {"detail": "..."}."""
-
     detail: str = Field(description="Сообщение об ошибке")
 
 
 class ValidationErrorSchema(Schema):
-    """Тело ошибок валидации Ninja/Pydantic: {"detail": [...]}."""
-
     detail: list[Any] = Field(description="Список ошибок валидации")
 
 
@@ -41,7 +37,7 @@ class WishCreateRequest(Schema):
     note: str = Field(description="Описание", default="")
 
 
-class WishCreateResponse(ModelSchema):
+class WishResponse(ModelSchema):
     wishlist_id: int = Field(description="ID Вишлиста")
 
     class Meta:
@@ -52,3 +48,10 @@ class WishCreateResponse(ModelSchema):
 class PathWish(Schema):
     wishlist_id: PositiveInt = Field(description="ID Вишлиста")
     wish_id: PositiveInt = Field(description="ID Желания")
+
+
+class WishUpdateRequest(Schema):
+    title: str | None = Field(description="Заголовок", default=None, min_length=1)
+    url: HttpUrl | None = Field(description="Ссылка", default=None)
+    note: str | None = Field(description="Описание", default=None)
+

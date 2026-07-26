@@ -1,3 +1,4 @@
+import pdb
 from http import HTTPStatus
 
 import pytest
@@ -89,3 +90,53 @@ def test_wishlists_get_happy(
     assert body["title"] == "test"
     assert response.status_code == HTTPStatus.OK
     assert WishList.objects.filter(owner=profile).count() == 1
+
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_wishlist_get_all_happy_path(
+        api_client,
+        profile,
+        wishlist_factory
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    wishlist_factory(telegram_profile=profile)
+    wishlist_factory(telegram_profile=profile)
+    response = api_client.get(
+        f"/api/wishlists/",
+        headers={"init_data": init_data},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert len(body) == 2
+    assert WishList.objects.filter(owner=profile).count() == 2
+
+@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+@pytest.mark.django_db
+def test_wishlist_get_all_empty_wishlists(
+        api_client,
+        profile,
+):
+    init_data = fresh_signed_init_data_user_id(1)
+    response = api_client.get(
+        f"/api/wishlists/",
+        headers={"init_data": init_data},
+    )
+    body = response.json()
+    assert body == []
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.django_db
+def test_wishlist_get_all_empty_or_invalid_init_data(api_client):
+    response = api_client.get(
+        "/api/wishlists/",
+        headers={"init_data": "test"},
+    )
+    body = response.json()
+    assert "detail" in body
+    assert body["detail"] == "initData без поля hash"
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+

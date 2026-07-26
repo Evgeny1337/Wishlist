@@ -55,12 +55,20 @@ def api_client(client):
             return client.get(
                 url,
                 headers=headers or {},
-                **kw
+                **kw,
             )
         def delete(self, url, headers=None, **kw):
             return client.delete(
                 url,
                 headers=headers or {},
-                **kw
+                **kw,
+            )
+        def patch(self, url, payload, headers=None, **kw):
+            return client.patch(
+                url,
+                data=json.dumps(payload),
+                headers=headers or {},
+                content_type="application/json",
+                **kw,
             )
     return ApiClient()
