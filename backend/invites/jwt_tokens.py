@@ -29,7 +29,5 @@ def issue_token_pair(telegram_user_id: int) -> TokenPair:
     )
 
 
-
-
 def decode_token(token: str) -> dict:
     return jwt.decode(token, key=settings.JWT_SECRET, algorithms=['HS256'])

@@ -1,6 +1,11 @@
 from typing import Optional
 
+from ninja import Schema
 from pydantic import BaseModel, Field
+
+
+class RefreshIn(BaseModel):
+    refresh_token: str
 
 
 class TokenPair(BaseModel):
@@ -55,3 +60,7 @@ class UserModel(BaseModel):
     added_to_attachment_menu: Optional[bool] = None
     allows_write_to_pm: Optional[bool] = None
     photo_url: Optional[str] = None
+
+
+class ErrorUnauthorized(Schema):
+    detail: dict[str, str]
