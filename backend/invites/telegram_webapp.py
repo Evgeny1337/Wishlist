@@ -5,7 +5,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router
+from ninja import Router, Status
 from ninja.errors import HttpError
 
 from invites.jwt_tokens import issue_token_pair, decode_token
@@ -74,6 +74,9 @@ def activate_invite_via_init_data_view(request: HttpRequest, body: ActivateViaWe
 
 @router.post('/session', response={
         HTTPStatus.OK: TokenPair,
+        HTTPStatus.UNAUTHORIZED: DetailSchema,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.SERVICE_UNAVAILABLE: DetailSchema,
 })
 def access_session_view(request: HttpRequest, body: VerifyInitDataIn):
     bot_token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
@@ -86,7 +89,7 @@ def access_session_view(request: HttpRequest, body: VerifyInitDataIn):
         raise HttpError(HTTPStatus.UNPROCESSABLE_ENTITY, "Ошибка валидации init_data")
     profile = get_object_or_404(TelegramProfile, telegram_user_id=web_user.id)
     _require_jwt_secret()
-    return HTTPStatus.OK, issue_token_pair(telegram_user_id=profile.telegram_user_id)
+    return Status(HTTPStatus.OK, issue_token_pair(telegram_user_id=profile.telegram_user_id))
 
 
 @router.post('/refresh', response={
@@ -102,12 +105,12 @@ def refresh_session_view(request: HttpRequest, body: RefreshIn):
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         raise HttpError(HTTPStatus.UNAUTHORIZED, "Ошибка JWT")
     if payload.get("type") != "refresh":
-        raise HttpError(HTTPStatus.UNAUTHORIZED, "Не верный тип токена")
+        raise HttpError(HTTPStatus.UNAUTHORIZED, "Неверный тип токена")
     if 'sub' not in payload:
-        raise HttpError(HTTPStatus.UNAUTHORIZED, "Отсутсвуют данные пользователя")
+        raise HttpError(HTTPStatus.UNAUTHORIZED, "Отсутствуют данные пользователя")
     telegram_user_id = int(payload["sub"])
     get_object_or_404(TelegramProfile, telegram_user_id=telegram_user_id)
-    return HTTPStatus.OK, issue_token_pair(telegram_user_id)
+    return Status(HTTPStatus.OK, issue_token_pair(telegram_user_id))
 
 
 
