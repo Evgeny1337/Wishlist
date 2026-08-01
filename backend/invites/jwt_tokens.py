@@ -10,13 +10,13 @@ def issue_token_pair(telegram_user_id: int) -> TokenPair:
     exp_access = int(time_now) + int(settings.JWT_ACCESS_TTL_SEC)
     exp_refresh = int(time_now) + int(settings.JWT_REFRESH_TTL_SEC)
     jwt_access = jwt.encode({
-        'sub': telegram_user_id,
+        'sub': str(telegram_user_id),
         'exp': exp_access,
         'iat': int(time_now),
         'type':'access'
     }, key=settings.JWT_SECRET, algorithm='HS256')
     jwt_refresh = jwt.encode({
-        'sub': telegram_user_id,
+        'sub': str(telegram_user_id),
         'exp': exp_refresh,
         'iat': int(time_now),
         'type':'refresh'

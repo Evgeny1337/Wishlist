@@ -4,6 +4,9 @@ import json
 import time
 from urllib.parse import urlencode
 
+import jwt
+from django.conf import settings
+
 from invites.telegram_init_data import (
     build_data_check_string,
     init_data_secret_key,
@@ -79,3 +82,25 @@ def post_activate_invite_via_webapp(client, raw_init_data: str, invite_token: st
         ),
         content_type="application/json",
     )
+
+
+def delete_sub_in_token(payload_token: str) -> str:
+    payload = jwt.decode(
+        payload_token,
+        key=settings.JWT_SECRET,
+        algorithms=["HS256"],
+    )
+    del payload["sub"]
+    return jwt.encode(payload, key=settings.JWT_SECRET, algorithm="HS256")
+
+
+def overdue_exp_in_token(payload_token: str) -> str:
+    time_now = time.time()
+    payload = jwt.decode(
+        payload_token,
+        key=settings.JWT_SECRET,
+        algorithms=["HS256"],
+    )
+    exp = int(time_now) - int(settings.JWT_REFRESH_TTL_SEC if payload['type'] == "refresh" else settings.JWT_ACCESS_TTL_SEC)
+    payload["exp"] = exp
+    return jwt.encode(payload, key=settings.JWT_SECRET, algorithm="HS256")
