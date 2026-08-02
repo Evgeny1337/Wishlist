@@ -1,7 +1,7 @@
 from http import HTTPStatus
 from typing import List
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt
@@ -129,7 +129,7 @@ def get_wish(
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
-    wish = get_object_or_404(Wish, wishlist=wishlist, id=path.wish_id)
+    wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), wishlist=wishlist, id=path.wish_id)
     return Status(HTTPStatus.OK, wish)
 
 
@@ -147,7 +147,7 @@ def get_wishes(
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
-    wishes = list(Wish.objects.filter(wishlist=wishlist))
+    wishes = list(Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist))
     return Status(HTTPStatus.OK, wishes)
 
 
@@ -186,14 +186,16 @@ def update_wish(
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
-    wish = get_object_or_404(Wish, id=path.wish_id, wishlist=wishlist)
-    updates = body.model_dump(exclude_unset=True)
-    if "url" in updates:
-        updates["url"] = str(updates["url"]) if updates["url"] else ""
-    if updates:
-        for attr, value in updates.items():
-            setattr(wish, attr, value)
-        wish.save(update_fields=list(updates))
+    wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), id=path.wish_id, wishlist=wishlist)
+    with transaction.atomic():
+        updates = body.model_dump(exclude_unset=True)
+        if "url" in updates:
+            updates["url"] = str(updates["url"]) if updates["url"] else ""
+        if updates:
+            wish.reservation.all().delete()
+            for attr, value in updates.items():
+                setattr(wish, attr, value)
+            wish.save(update_fields=list(updates))
     return Status(HTTPStatus.OK, wish)
 
 

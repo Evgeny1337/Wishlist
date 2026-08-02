@@ -37,6 +37,22 @@ class WishCreateRequest(Schema):
 
 class WishResponse(ModelSchema):
     wishlist_id: int = Field(description="ID Вишлиста")
+    is_reserved: bool = Field(description="Статус резервирования")
+    reserved_by_me: bool = Field(description="Забронировано мной")
+
+    @staticmethod
+    def resolve_is_reserved(obj):
+        reservation = list(obj.reservation.all())
+        return len(reservation) > 0
+
+    @staticmethod
+    def resolve_reserved_by_me(obj, context):
+        request = context["request"]
+        reservation = list(obj.reservation.all())
+        if len(reservation) > 0:
+            reservation_profile = reservation[0].profile
+            return reservation_profile.pk == request.auth.pk
+        return False
 
     class Meta:
         model = Wish
