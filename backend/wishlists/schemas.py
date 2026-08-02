@@ -20,7 +20,6 @@ class DeletedResponse(Schema):
 
 
 class WishListCreateRequest(Schema):
-    init_data: str = Field(description="Авторизационные данные")
     title: str = Field(description="Заголовок", min_length=1)
 
 
@@ -31,7 +30,6 @@ class WishListResponseSchema(ModelSchema):
 
 
 class WishCreateRequest(Schema):
-    init_data: str = Field(description="Авторизационные данные", min_length=1)
     title: str = Field(description="Заголовок", min_length=1)
     url: HttpUrl | None = Field(description="Ссылка", default=None)
     note: str = Field(description="Описание", default="")

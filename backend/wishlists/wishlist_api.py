@@ -5,9 +5,9 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt
 from django.http import HttpRequest
-from ninja import Router, Status, Path, Header
+from ninja import Router, Status, Path
 
-from .helpers import get_profile
+from invites.auth import TelegramJWTAuth
 from .models import WishList, Wish
 from .schemas import (
     WishListResponseSchema,
@@ -20,7 +20,7 @@ from .schemas import (
     PathWish, WishUpdateRequest,
 )
 
-wishlists_router = Router()
+wishlists_router = Router(auth=TelegramJWTAuth())
 
 
 _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
@@ -36,7 +36,7 @@ _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
     },
 )
 def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
-    profile = get_profile(data.init_data)
+    profile = request.auth
     wishlist = WishList.objects.create(
         owner=profile,
         title=data.title,
@@ -52,8 +52,8 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
         HTTPStatus.NOT_FOUND: DetailSchema,
     },
 )
-def get_wishlists(request: HttpRequest, init_data: Header[str]):
-    profile = get_profile(init_data)
+def get_wishlists(request: HttpRequest):
+    profile = request.auth
     wishlists = WishList.objects.filter(owner=profile)
     return Status(HTTPStatus.OK, wishlists)
 
@@ -69,9 +69,8 @@ def get_wishlists(request: HttpRequest, init_data: Header[str]):
 def get_wishlist(
     request: HttpRequest,
     wishlist_id: PositiveInt,
-    init_data: Header[str],
 ):
-    profile = get_profile(init_data)
+    profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     return Status(HTTPStatus.OK, wishlist)
 
@@ -87,9 +86,8 @@ def get_wishlist(
 def delete_wishlist(
     request: HttpRequest,
     wishlist_id: PositiveInt,
-    init_data: Header[str],
 ):
-    profile = get_profile(init_data)
+    profile = request.auth
     deleted_count, details = WishList.objects.filter(owner=profile, id=wishlist_id).delete()
     if deleted_count == 0:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такого вишлиста нету")
@@ -105,7 +103,7 @@ def delete_wishlist(
     },
 )
 def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreateRequest):
-    profile = get_profile(data.init_data)
+    profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     wish = Wish.objects.create(
         wishlist=wishlist,
@@ -127,9 +125,8 @@ def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreate
 def get_wish(
         request: HttpRequest,
         path: Path[PathWish],
-        init_data: Header[str],
 ):
-    profile = get_profile(init_data)
+    profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
     wish = get_object_or_404(Wish, wishlist=wishlist, id=path.wish_id)
     return Status(HTTPStatus.OK, wish)
@@ -146,9 +143,8 @@ def get_wish(
 def get_wishes(
     request: HttpRequest,
     wishlist_id: PositiveInt,
-    init_data: Header[str],
 ):
-    profile = get_profile(init_data)
+    profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
     wishes = list(Wish.objects.filter(wishlist=wishlist))
     return Status(HTTPStatus.OK, wishes)
@@ -165,9 +161,8 @@ def get_wishes(
 def delete_wish(
         request: HttpRequest,
         path: Path[PathWish],
-        init_data: Header[str]
 ):
-    profile = get_profile(init_data)
+    profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
     deleted_count, details = Wish.objects.filter(wishlist=wishlist, id=path.wish_id).delete()
     if deleted_count == 0:
@@ -186,10 +181,9 @@ def delete_wish(
 def update_wish(
         request: HttpRequest,
         path: Path[PathWish],
-        init_data: Header[str],
         body: WishUpdateRequest,
 ):
-    profile = get_profile(init_data)
+    profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
     wish = get_object_or_404(Wish, id=path.wish_id, wishlist=wishlist)
     updates = body.model_dump(exclude_unset=True)

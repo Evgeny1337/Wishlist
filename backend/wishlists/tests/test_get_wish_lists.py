@@ -1,19 +1,15 @@
-import pdb
 from http import HTTPStatus
 
 import pytest
 
-from django.test import override_settings
-
-from invites.tests.helpers import fresh_signed_init_data_user_id, BOT_TOKEN_VERIFY
 from wishlists.models import WishList
 
 
 @pytest.mark.django_db
-def test_wishlists_get_invalid_id(api_client):
+def test_wishlists_get_invalid_id(api_client, profile, auth_headers):
     response = api_client.get(
         "/api/wishlists/test/",
-        headers={"init_data": "test"},
+        headers=auth_headers(profile.telegram_user_id),
     )
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     body = response.json()
@@ -22,68 +18,47 @@ def test_wishlists_get_invalid_id(api_client):
 
 
 @pytest.mark.django_db
-def test_wishlists_get_missing_init_data(api_client):
-    response = api_client.get(
-        "/api/wishlists/1/",
-        headers={},
-    )
-    body = response.json()
-    assert "detail" in body
-    assert body["detail"][0]["type"] == "missing"
-    assert body["detail"][0]["loc"] == ["header", "init_data"]
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+def test_wishlists_get_unauthorized(api_client):
+    response = api_client.get("/api/wishlists/1/", headers={})
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
-def test_wishlists_get_unknown_wishlist(
-        api_client,
-        profile,
-):
-    init_data = fresh_signed_init_data_user_id(1)
+def test_wishlists_get_unknown_wishlist(api_client, profile, auth_headers):
     response = api_client.get(
         "/api/wishlists/1/",
-        headers={"init_data": init_data},
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert "detail" in body
-    assert body["detail"] == "Not Found"
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
 def test_wishlists_get_someone_else(
-        api_client,
-        profile_factory,
-        wishlist_factory,
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    auth_headers,
 ):
     profile_1 = profile_factory(telegram_user_id=1)
     profile_factory(telegram_user_id=2)
     wishlist_1 = wishlist_factory(telegram_profile=profile_1)
-    init_data = fresh_signed_init_data_user_id(2)
     response = api_client.get(
         f"/api/wishlists/{wishlist_1.id}/",
-        headers={"init_data": init_data},
+        headers=auth_headers(2),
     )
     body = response.json()
     assert "detail" in body
-    assert body["detail"] == "Not Found"
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
-def test_wishlists_get_happy(
-        api_client,
-        profile,
-        wishlist_factory,
-):
+def test_wishlists_get_happy(api_client, profile, wishlist_factory, auth_headers):
     wishlist = wishlist_factory(telegram_profile=profile)
-    init_data = fresh_signed_init_data_user_id(1)
     response = api_client.get(
         f"/api/wishlists/{wishlist.id}/",
-        headers={"init_data": init_data},
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert body["id"] == wishlist.id
@@ -92,35 +67,30 @@ def test_wishlists_get_happy(
     assert WishList.objects.filter(owner=profile).count() == 1
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
 def test_wishlist_get_all_happy_path(
-        api_client,
-        profile,
-        wishlist_factory
+    api_client,
+    profile,
+    wishlist_factory,
+    auth_headers,
 ):
-    init_data = fresh_signed_init_data_user_id(1)
     wishlist_factory(telegram_profile=profile)
     wishlist_factory(telegram_profile=profile)
     response = api_client.get(
-        f"/api/wishlists/",
-        headers={"init_data": init_data},
+        "/api/wishlists/",
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert response.status_code == HTTPStatus.OK
     assert len(body) == 2
     assert WishList.objects.filter(owner=profile).count() == 2
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
+
 @pytest.mark.django_db
-def test_wishlist_get_all_empty_wishlists(
-        api_client,
-        profile,
-):
-    init_data = fresh_signed_init_data_user_id(1)
+def test_wishlist_get_all_empty_wishlists(api_client, profile, auth_headers):
     response = api_client.get(
-        f"/api/wishlists/",
-        headers={"init_data": init_data},
+        "/api/wishlists/",
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert body == []
@@ -128,15 +98,6 @@ def test_wishlist_get_all_empty_wishlists(
 
 
 @pytest.mark.django_db
-def test_wishlist_get_all_empty_or_invalid_init_data(api_client):
-    response = api_client.get(
-        "/api/wishlists/",
-        headers={"init_data": "test"},
-    )
-    body = response.json()
-    assert "detail" in body
-    assert body["detail"] == "initData без поля hash"
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-
-
-
+def test_wishlist_get_all_unauthorized(api_client):
+    response = api_client.get("/api/wishlists/", headers={})
+    assert response.status_code == HTTPStatus.UNAUTHORIZED

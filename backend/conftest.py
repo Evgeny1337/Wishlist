@@ -7,7 +7,7 @@ from invites.models import TelegramProfile
 
 @pytest.fixture
 def profile_factory(db):
-    def _create(telegram_user_id:int = 1, **kwargs):
+    def _create(telegram_user_id: int = 1, **kwargs):
         return TelegramProfile.objects.create(
             telegram_user_id=telegram_user_id,
             **kwargs
@@ -23,25 +23,29 @@ def profile(profile_factory):
 @pytest.fixture
 def api_client(client):
     class ApiClient:
-        def post(self, url, payload, **kw):
+        def post(self, url, payload, headers=None, **kw):
             return client.post(
                 url,
                 data=json.dumps(payload),
                 content_type="application/json",
+                headers=headers or {},
                 **kw,
             )
+
         def get(self, url, headers=None, **kw):
             return client.get(
                 url,
                 headers=headers or {},
                 **kw,
             )
+
         def delete(self, url, headers=None, **kw):
             return client.delete(
                 url,
                 headers=headers or {},
                 **kw,
             )
+
         def patch(self, url, payload, headers=None, **kw):
             return client.patch(
                 url,
@@ -50,4 +54,5 @@ def api_client(client):
                 content_type="application/json",
                 **kw,
             )
+
     return ApiClient()

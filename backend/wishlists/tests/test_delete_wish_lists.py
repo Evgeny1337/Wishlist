@@ -1,17 +1,15 @@
 from http import HTTPStatus
 
 import pytest
-from django.test import override_settings
 
-from invites.tests.helpers import BOT_TOKEN_VERIFY, fresh_signed_init_data_user_id
 from wishlists.models import WishList
 
 
 @pytest.mark.django_db
-def test_delete_wishlist_invalid_id(api_client):
+def test_delete_wishlist_invalid_id(api_client, profile, auth_headers):
     response = api_client.delete(
         "/api/wishlists/test/",
-        headers={"init_data": "test"},
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert "detail" in body
@@ -20,28 +18,16 @@ def test_delete_wishlist_invalid_id(api_client):
 
 
 @pytest.mark.django_db
-def test_delete_wishlist_missing_init_data(api_client):
-    response = api_client.delete(
-        "/api/wishlists/1/",
-        headers={},
-    )
-    body = response.json()
-    assert "detail" in body
-    assert body["detail"][0]["type"] == "missing"
-    assert body["detail"][0]["loc"] == ["header", "init_data"]
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+def test_delete_wishlist_unauthorized(api_client):
+    response = api_client.delete("/api/wishlists/1/", headers={})
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
-def test_delete_wishlist_wrong_id(
-        api_client,
-        profile,
-):
-    init_data = fresh_signed_init_data_user_id(1)
+def test_delete_wishlist_wrong_id(api_client, profile, auth_headers):
     response = api_client.delete(
         "/api/wishlists/2/",
-        headers={"init_data": init_data},
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert "detail" in body
@@ -49,20 +35,19 @@ def test_delete_wishlist_wrong_id(
     assert response.status_code == HTTPStatus.NOT_FOUND
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
 def test_delete_wishlist_someone_else(
-        api_client,
-        profile_factory,
-        wishlist_factory,
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    auth_headers,
 ):
     profile_1 = profile_factory(telegram_user_id=1)
     profile_factory(telegram_user_id=2)
     wishlist_1 = wishlist_factory(telegram_profile=profile_1)
-    init_data = fresh_signed_init_data_user_id(2)
     response = api_client.delete(
         f"/api/wishlists/{wishlist_1.id}/",
-        headers={"init_data": init_data},
+        headers=auth_headers(2),
     )
     body = response.json()
     assert body["detail"] == "Такого вишлиста нету"
@@ -70,18 +55,17 @@ def test_delete_wishlist_someone_else(
     assert WishList.objects.filter(id=wishlist_1.id).exists()
 
 
-@override_settings(TELEGRAM_BOT_TOKEN=BOT_TOKEN_VERIFY)
 @pytest.mark.django_db
 def test_delete_wishlist_happy_path(
-        api_client,
-        profile,
-        wishlist_factory,
+    api_client,
+    profile,
+    wishlist_factory,
+    auth_headers,
 ):
     wishlist = wishlist_factory(telegram_profile=profile)
-    init_data = fresh_signed_init_data_user_id(1)
     response = api_client.delete(
         f"/api/wishlists/{wishlist.id}/",
-        headers={"init_data": init_data},
+        headers=auth_headers(profile.telegram_user_id),
     )
     body = response.json()
     assert "deleted_count" in body
