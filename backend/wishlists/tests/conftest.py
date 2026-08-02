@@ -2,7 +2,7 @@ import pytest
 
 from invites.jwt_tokens import issue_token_pair
 from invites.models import TelegramProfile
-from wishlists.models import WishList, Wish
+from wishlists.models import WishList, Wish, WishReservation
 
 
 @pytest.fixture(autouse=True)
@@ -55,3 +55,13 @@ def wishlist_factory(db):
         )
 
     return _create_wishlist
+
+
+@pytest.fixture()
+def wish_reservation_factory(db):
+    def _create_wish_reservation(wish: Wish, profile: TelegramProfile):
+        return WishReservation.objects.create(
+            profile=profile,
+            wish=wish,
+        )
+    return _create_wish_reservation
