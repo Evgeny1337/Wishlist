@@ -53,3 +53,12 @@ class WishUpdateRequest(Schema):
     url: HttpUrl | None = Field(description="Ссылка", default=None)
     note: str | None = Field(description="Описание", default=None)
 
+
+class WishReservationResponse(Schema):
+    wish: int = Field(description="id Желания")
+    is_reserved: bool = Field(description="Статус резервации")
+
+
+class WishDeleteReserveResponse(Schema):
+    wish: int = Field(description="id Удаленного желания")
+

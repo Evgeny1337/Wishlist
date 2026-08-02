@@ -15,3 +15,16 @@ class Wish(models.Model):
     url = models.URLField(blank=True)
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class WishReservation(models.Model):
+    wish = models.ForeignKey(Wish, on_delete=models.CASCADE, related_name="reservation")
+    profile = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="reservations")
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["wish"],
+                name="unique_reservation",
+            )
+        ]

@@ -1,6 +1,7 @@
 from http import HTTPStatus
 from typing import List
 
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt
@@ -8,7 +9,7 @@ from django.http import HttpRequest
 from ninja import Router, Status, Path
 
 from invites.auth import TelegramJWTAuth
-from .models import WishList, Wish
+from .models import WishList, Wish, WishReservation
 from .schemas import (
     WishListResponseSchema,
     DetailSchema,
@@ -17,7 +18,7 @@ from .schemas import (
     DeletedResponse,
     WishCreateRequest,
     WishResponse,
-    PathWish, WishUpdateRequest,
+    PathWish, WishUpdateRequest, WishReservationResponse, WishDeleteReserveResponse,
 )
 
 wishlists_router = Router(auth=TelegramJWTAuth())
@@ -194,3 +195,78 @@ def update_wish(
             setattr(wish, attr, value)
         wish.save(update_fields=list(updates))
     return Status(HTTPStatus.OK, wish)
+
+
+@wishlists_router.post(
+    "/{wishlist_id}/wishes/{wish_id}/reserve/",
+    response={
+        HTTPStatus.CREATED: WishReservationResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.CONFLICT: DetailSchema,
+    }
+)
+def reserve_wish(
+        request: HttpRequest,
+        path: Path[PathWish],
+):
+    profile = request.auth
+    wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
+    try:
+        WishReservation.objects.create(
+            wish=wish,
+            profile=profile,
+        )
+    except IntegrityError as exc:
+        raise HttpError(
+            HTTPStatus.CONFLICT,
+            "Желание уже забронировано",
+        ) from exc
+    return Status(HTTPStatus.CREATED, WishReservationResponse(
+        wish=wish.id,
+        is_reserved=True,
+    ))
+
+
+@wishlists_router.get(
+    "/{wishlist_id}/wishes/{wish_id}/reserve/",
+    response={
+        HTTPStatus.OK: WishReservationResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def get_reserve_wish(
+        request: HttpRequest,
+        path: Path[PathWish],
+):
+    profile = request.auth
+    wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
+    try:
+        WishReservation.objects.get(wish=wish, profile=profile)
+    except WishReservation.DoesNotExist:
+        return Status(HTTPStatus.OK, WishReservationResponse(
+            wish=wish.id,
+            is_reserved=False,
+        ))
+    return Status(HTTPStatus.OK, WishReservationResponse(
+        wish=wish.id,
+        is_reserved=True
+    ))
+
+
+@wishlists_router.delete(
+    "/{wishlist_id}/wishes/{wish_id}/reserve/",
+    response={
+        HTTPStatus.OK: WishDeleteReserveResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def delete_reserve_wish(
+        request: HttpRequest,
+        path: Path[PathWish],
+):
+    profile = request.auth
+    wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
+    wish_reservation = get_object_or_404(WishReservation, wish=wish, profile=profile)
+    wish_reservation.delete()
+    return Status(HTTPStatus.OK, WishDeleteReserveResponse(
+        wish=wish.id))
