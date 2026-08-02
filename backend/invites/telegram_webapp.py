@@ -5,9 +5,10 @@ from django.conf import settings
 from django.db import transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router, Status
+from ninja import Router, Status, Schema, Field
 from ninja.errors import HttpError
 
+from invites.auth import TelegramJWTAuth
 from invites.jwt_tokens import issue_token_pair, decode_token
 from invites.models import TelegramProfile
 from invites.pydantic_models import (
@@ -27,6 +28,10 @@ from invites.telegram_webapp_user import telegram_user_init_data
 from wishlists.schemas import DetailSchema
 
 router = Router()
+
+
+class MeOut(Schema):
+    telegram_user_id: int = Field(description="id телеграм профиля")
 
 
 def _require_jwt_secret() -> None:
@@ -113,6 +118,9 @@ def refresh_session_view(request: HttpRequest, body: RefreshIn):
     return Status(HTTPStatus.OK, issue_token_pair(telegram_user_id))
 
 
-
-
-
+@router.get('/me', response={
+    HTTPStatus.OK: MeOut,
+    HTTPStatus.UNAUTHORIZED: DetailSchema,
+}, auth=TelegramJWTAuth())
+def get_me(request: HttpRequest):
+    return Status(HTTPStatus.OK, {"telegram_user_id": request.auth.telegram_user_id})
