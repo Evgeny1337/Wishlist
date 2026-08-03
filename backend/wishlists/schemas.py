@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from ninja import Schema, ModelSchema
 from pydantic import Field, PositiveInt, HttpUrl
@@ -33,6 +33,7 @@ class WishCreateRequest(Schema):
     title: str = Field(description="Заголовок", min_length=1)
     url: HttpUrl | None = Field(description="Ссылка", default=None)
     note: str = Field(description="Описание", default="")
+    priority: Literal[1, 2, 3] = Field(description="Градация важности", default=Wish.WishPriority.LOW)
 
 
 class WishResponse(ModelSchema):
@@ -56,7 +57,7 @@ class WishResponse(ModelSchema):
 
     class Meta:
         model = Wish
-        fields = ["id", "title", "url", "note", "created_at"]
+        fields = ["id", "title", "url", "note", "created_at", "priority"]
 
 
 class PathWish(Schema):
@@ -68,6 +69,7 @@ class WishUpdateRequest(Schema):
     title: str | None = Field(description="Заголовок", default=None, min_length=1)
     url: HttpUrl | None = Field(description="Ссылка", default=None)
     note: str | None = Field(description="Описание", default=None)
+    priority: Literal[1, 2, 3] | None = Field(description="Градация важности", default=None)
 
 
 class WishReservationResponse(Schema):

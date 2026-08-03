@@ -61,6 +61,7 @@ def test_create_wish_happy_path(api_client, profile, wishlist_factory, auth_head
     assert body["title"] == "test"
     assert body["is_reserved"] is False
     assert body["reserved_by_me"] is False
+    assert body["priority"] == Wish.WishPriority.LOW
     assert response.status_code == HTTPStatus.CREATED
     assert Wish.objects.filter(wishlist=wishlist, id=body["id"]).exists()
 
@@ -541,3 +542,124 @@ def test_update_wish_unauthorized(
         payload={"title": "test3"},
     )
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_create_wish_with_high_priority(
+    api_client,
+    profile,
+    wishlist_factory,
+    auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    response = api_client.post(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        payload={
+            "title": "urgent",
+            "note": "test",
+            "url": "https://test-kek.ru",
+            "priority": Wish.WishPriority.HIGH,
+        },
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.CREATED
+    assert body["priority"] == Wish.WishPriority.HIGH
+    wish = Wish.objects.get(id=body["id"])
+    assert wish.priority == Wish.WishPriority.HIGH
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("bad_priority", [0, 4, -1])
+def test_create_wish_invalid_priority(
+    api_client,
+    profile,
+    wishlist_factory,
+    auth_headers,
+    bad_priority,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    response = api_client.post(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        payload={
+            "title": "test",
+            "note": "test",
+            "url": "https://test-kek.ru",
+            "priority": bad_priority,
+        },
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert "detail" in response.json()
+
+
+@pytest.mark.django_db
+def test_update_wish_priority(
+    api_client,
+    profile,
+    wishlist_factory,
+    wish_factory,
+    auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist, priority=Wish.WishPriority.LOW)
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+        payload={"priority": Wish.WishPriority.HIGH},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["priority"] == Wish.WishPriority.HIGH
+    wish.refresh_from_db()
+    assert wish.priority == Wish.WishPriority.HIGH
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("bad_priority", [0, 4])
+def test_update_wish_invalid_priority(
+    api_client,
+    profile,
+    wishlist_factory,
+    wish_factory,
+    auth_headers,
+    bad_priority,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+        payload={"priority": bad_priority},
+    )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.django_db
+def test_get_wishes_ordered_by_priority(
+    api_client,
+    profile,
+    wishlist_factory,
+    wish_factory,
+    auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    low = wish_factory(wishlist=wishlist, title="low", priority=Wish.WishPriority.LOW)
+    high = wish_factory(wishlist=wishlist, title="high", priority=Wish.WishPriority.HIGH)
+    medium = wish_factory(
+        wishlist=wishlist,
+        title="medium",
+        priority=Wish.WishPriority.MEDIUM,
+    )
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert [item["id"] for item in body] == [high.id, medium.id, low.id]
+    assert [item["priority"] for item in body] == [
+        Wish.WishPriority.HIGH,
+        Wish.WishPriority.MEDIUM,
+        Wish.WishPriority.LOW,
+    ]

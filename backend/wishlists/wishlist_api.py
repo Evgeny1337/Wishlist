@@ -111,6 +111,7 @@ def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreate
         title=data.title,
         note=data.note,
         url=str(data.url) if data.url else "",
+        priority=data.priority,
     )
     return Status(HTTPStatus.CREATED, wish)
 
@@ -147,7 +148,7 @@ def get_wishes(
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
-    wishes = list(Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist))
+    wishes = list(Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist).order_by("-priority", "-created_at"))
     return Status(HTTPStatus.OK, wishes)
 
 
