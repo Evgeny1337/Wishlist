@@ -1,9 +1,10 @@
 from typing import Any, Literal
+from datetime import datetime
 
 from ninja import Schema, ModelSchema
 from pydantic import Field, PositiveInt, HttpUrl
 
-from wishlists.models import WishList, Wish
+from wishlists.models import WishList, Wish, Event
 
 
 class DetailSchema(Schema):
@@ -80,3 +81,27 @@ class WishReservationResponse(Schema):
 class WishDeleteReserveResponse(Schema):
     wish: int = Field(description="id Удаленного желания")
 
+
+class EventRequest(Schema):
+    title: str = Field(description="Наименование", min_length=1)
+    wishlist: PositiveInt = Field(description="ID Вишлиста")
+    starts_at: datetime = Field(description="Дата события")
+
+
+class EventUpdateRequest(Schema):
+    title: str | None = Field(description="Наименование", min_length=1, default=None)
+    wishlist: PositiveInt | None = Field(description="ID Вишлиста", default=None)
+    starts_at: datetime | None = Field(description="Дата события", default=None)
+
+
+class EventDeleteResponse(Schema):
+    deleted_count: PositiveInt = Field(description="Количество удаленных")
+    details: dict[str, int] = Field(description="Количество удаленных объектов")
+
+
+class EventResponse(ModelSchema):
+    wishlist_id: int = Field(description="ID Вишлиста")
+
+    class Meta:
+        model = Event
+        fields = ["id", "title", "created_at", "starts_at"]

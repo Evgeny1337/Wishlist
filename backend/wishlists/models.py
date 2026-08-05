@@ -33,3 +33,11 @@ class WishReservation(models.Model):
                 name="unique_reservation",
             )
         ]
+
+
+class Event(models.Model):
+    title = models.CharField(max_length=200)
+    owner = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="events")
+    wishlist = models.ForeignKey(WishList, on_delete=models.PROTECT, related_name="events")
+    created_at = models.DateTimeField(auto_now_add=True)
+    starts_at = models.DateTimeField()

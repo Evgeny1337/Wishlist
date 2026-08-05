@@ -2,6 +2,7 @@ from http import HTTPStatus
 from typing import List
 
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt
@@ -81,6 +82,7 @@ def get_wishlist(
     response={
         HTTPStatus.OK: DeletedResponse,
         HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.CONFLICT: DetailSchema,
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
 )
@@ -89,9 +91,16 @@ def delete_wishlist(
     wishlist_id: PositiveInt,
 ):
     profile = request.auth
-    deleted_count, details = WishList.objects.filter(owner=profile, id=wishlist_id).delete()
-    if deleted_count == 0:
+    wishlist = WishList.objects.filter(owner=profile, id=wishlist_id).first()
+    if wishlist is None:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такого вишлиста нету")
+    try:
+        deleted_count, details = wishlist.delete()
+    except ProtectedError:
+        raise HttpError(
+            HTTPStatus.CONFLICT,
+            "Нельзя удалить вишлист, пока к нему привязаны события",
+        )
     return DeletedResponse(details=details, deleted_count=deleted_count)
 
 
