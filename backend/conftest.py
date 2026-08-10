@@ -32,10 +32,11 @@ def api_client(client):
                 **kw,
             )
 
-        def get(self, url, headers=None, **kw):
+        def get(self, url, headers=None, data=None, **kw):
             return client.get(
                 url,
                 headers=headers or {},
+                data=data or {},
                 **kw,
             )
 

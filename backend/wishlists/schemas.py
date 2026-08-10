@@ -1,7 +1,8 @@
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from datetime import datetime
 
-from ninja import Schema, ModelSchema
+from django.db.models import Q
+from ninja import Schema, ModelSchema, FilterSchema, FilterConfigDict
 from pydantic import Field, PositiveInt, HttpUrl
 
 from wishlists.models import WishList, Wish, Event
@@ -105,3 +106,16 @@ class EventResponse(ModelSchema):
     class Meta:
         model = Event
         fields = ["id", "title", "created_at", "starts_at"]
+
+
+class WishListQueryParams(FilterSchema):
+    priority: int | None = Field(ge=Wish.WishPriority.LOW, le=Wish.WishPriority.HIGH, default=None)
+    is_reserved: Optional[bool] = None
+
+    def filter_is_reserved(self, value: bool):
+        return Q(reservation__isnull=not value)
+
+    model_config = FilterConfigDict(expression_connector="AND")
+
+
+

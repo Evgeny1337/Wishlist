@@ -663,3 +663,137 @@ def test_get_wishes_ordered_by_priority(
         Wish.WishPriority.MEDIUM,
         Wish.WishPriority.LOW,
     ]
+
+
+@pytest.mark.django_db
+def test_get_wishes_filter_by_priority(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+        auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish_1 = wish_factory(wishlist=wishlist, title="wish_1", priority=Wish.WishPriority.MEDIUM)
+    wish_2 = wish_factory(wishlist=wishlist, title="wish_2", priority=Wish.WishPriority.MEDIUM)
+    wish_factory(wishlist=wishlist, title="wish_3", priority=Wish.WishPriority.HIGH)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        data={"priority": Wish.WishPriority.MEDIUM.value},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    wish_response_1 = [x for x in body if x["id"] == wish_1.id][0]
+    wish_response_2 = [x for x in body if x["id"] == wish_2.id][0]
+    assert wish_response_1["priority"] == Wish.WishPriority.MEDIUM.value
+    assert wish_response_2["priority"] == Wish.WishPriority.MEDIUM.value
+    assert len(body) == 2
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.django_db
+def test_get_wishes_filter_reserved_true(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+        wish_reservation_factory,
+        auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish_1 = wish_factory(wishlist=wishlist, title='wish_1')
+    wish_2 = wish_factory(wishlist=wishlist, title='wish_2')
+    wish_factory(wishlist=wishlist, title='wish_3')
+    wish_reservation_factory(wish=wish_1, profile=profile)
+    wish_reservation_factory(wish=wish_2, profile=profile)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        data={"is_reserved": True},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body:list[dict] = response.json()
+    wish_response_1 = [x for x in body if x['id'] == wish_1.id][0]
+    wish_response_2 = [x for x in body if x['id'] == wish_2.id][0]
+    assert wish_response_1["is_reserved"] == True
+    assert wish_response_2["is_reserved"] == True
+    assert len(body) == 2
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.django_db
+def test_get_wishes_filter_reserved_false(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+        wish_reservation_factory,
+        auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish_1 = wish_factory(wishlist=wishlist, title='wish_1')
+    wish_2 = wish_factory(wishlist=wishlist, title='wish_2')
+    wish_reservation_factory(wish=wish_1, profile=profile)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        data={"is_reserved": False},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body: list[dict] = response.json()
+    wish_response_1 = [x for x in body if x['id'] == wish_2.id][0]
+    assert wish_response_1["is_reserved"] == False
+    assert len(body) == 1
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.django_db
+def test_get_wishes_filter_priority_and_reserved(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+        wish_reservation_factory,
+        auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish_1 = wish_factory(wishlist=wishlist, title='wish_1', priority=Wish.WishPriority.MEDIUM)
+    wish_factory(wishlist=wishlist, title='wish_2', priority=Wish.WishPriority.LOW)
+    wish_3 = wish_factory(wishlist=wishlist, title='wish_3', priority=Wish.WishPriority.HIGH)
+    wish_factory(wishlist=wishlist, title='wish_4', priority=Wish.WishPriority.MEDIUM)
+    wish_reservation_factory(wish=wish_1, profile=profile)
+    wish_reservation_factory(wish=wish_3, profile=profile)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        data={"is_reserved": True, "priority": Wish.WishPriority.MEDIUM.value},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body: list[dict] = response.json()
+    wish_response_1 = [x for x in body if x['id'] == wish_1.id][0]
+    assert wish_response_1["is_reserved"] == True
+    assert wish_response_1["priority"] == Wish.WishPriority.MEDIUM.value
+    assert len(body) == 1
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.django_db
+def test_get_wishes_filter_invalid_priority(
+        api_client,
+        profile,
+        wishlist_factory,
+        wish_factory,
+        auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish_factory(wishlist=wishlist, title='wish_1', priority=Wish.WishPriority.MEDIUM)
+    wish_factory(wishlist=wishlist, title='wish_2', priority=Wish.WishPriority.MEDIUM)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        data={"priority": 4},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert 'detail' in body
+    assert body['detail'][0]['msg'] == 'Input should be less than or equal to 3'
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+

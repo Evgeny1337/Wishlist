@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt
 from django.http import HttpRequest
-from ninja import Router, Status, Path
+from ninja import Router, Status, Path, Query
 
 from invites.auth import TelegramJWTAuth
 from .models import WishList, Wish, WishReservation
@@ -19,7 +19,7 @@ from .schemas import (
     DeletedResponse,
     WishCreateRequest,
     WishResponse,
-    PathWish, WishUpdateRequest, WishReservationResponse, WishDeleteReserveResponse,
+    PathWish, WishUpdateRequest, WishReservationResponse, WishDeleteReserveResponse, WishListQueryParams,
 )
 
 wishlists_router = Router(auth=TelegramJWTAuth())
@@ -154,10 +154,12 @@ def get_wish(
 def get_wishes(
     request: HttpRequest,
     wishlist_id: PositiveInt,
+    filters: Query[WishListQueryParams]
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
-    wishes = list(Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist).order_by("-priority", "-created_at"))
+    wishes = Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist).order_by("-priority", "-created_at")
+    wishes = filters.filter(wishes)
     return Status(HTTPStatus.OK, wishes)
 
 
