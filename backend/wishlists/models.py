@@ -41,3 +41,16 @@ class Event(models.Model):
     wishlist = models.ForeignKey(WishList, on_delete=models.PROTECT, related_name="events")
     created_at = models.DateTimeField(auto_now_add=True)
     starts_at = models.DateTimeField()
+
+
+class WishListAccess(models.Model):
+    profile = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="wishlist_accesses")
+    wishlist = models.ForeignKey(WishList, on_delete=models.CASCADE, related_name="wishlist_accesses")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "wishlist"],
+                name="unique_wishlist_access",
+            )
+        ]

@@ -2,7 +2,7 @@ from http import HTTPStatus
 from typing import List
 
 from django.db import IntegrityError, transaction
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404
 from ninja.errors import HttpError
 from pydantic import PositiveInt
@@ -10,6 +10,7 @@ from django.http import HttpRequest
 from ninja import Router, Status, Path, Query
 
 from invites.auth import TelegramJWTAuth
+from invites.models import TelegramProfile
 from .models import WishList, Wish, WishReservation
 from .schemas import (
     WishListResponseSchema,
@@ -26,6 +27,15 @@ wishlists_router = Router(auth=TelegramJWTAuth())
 
 
 _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
+
+
+def can_edit_wishlist(profile: TelegramProfile):
+    return Q(owner=profile)
+
+
+def can_view_wishlist(profile: TelegramProfile):
+    return Q(wishlist_accesses__profile=profile) | Q(owner=profile)
+
 
 
 @wishlists_router.post(
@@ -56,7 +66,7 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
 )
 def get_wishlists(request: HttpRequest):
     profile = request.auth
-    wishlists = WishList.objects.filter(owner=profile)
+    wishlists = WishList.objects.filter(can_view_wishlist(profile))
     return Status(HTTPStatus.OK, wishlists)
 
 
@@ -73,7 +83,9 @@ def get_wishlist(
     wishlist_id: PositiveInt,
 ):
     profile = request.auth
-    wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
+    wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_view_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     return Status(HTTPStatus.OK, wishlist)
 
 
@@ -138,7 +150,9 @@ def get_wish(
         path: Path[PathWish],
 ):
     profile = request.auth
-    wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
+    wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), wishlist=wishlist, id=path.wish_id)
     return Status(HTTPStatus.OK, wish)
 
@@ -157,7 +171,9 @@ def get_wishes(
     filters: Query[WishListQueryParams]
 ):
     profile = request.auth
-    wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
+    wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_view_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     wishes = Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist).order_by("-priority", "-created_at")
     wishes = filters.filter(wishes)
     return Status(HTTPStatus.OK, wishes)
@@ -224,6 +240,9 @@ def reserve_wish(
         path: Path[PathWish],
 ):
     profile = request.auth
+    wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
     try:
         WishReservation.objects.create(
@@ -284,3 +303,41 @@ def delete_reserve_wish(
     wish_reservation.delete()
     return Status(HTTPStatus.OK, WishDeleteReserveResponse(
         wish=wish.id))
+
+
+@wishlists_router.post(
+    '/{wishlist_id}/grant/'
+)
+def grant_wishlist_access(
+        request: HttpRequest,
+):
+    pass
+
+
+@wishlists_router.delete(
+    '/{wishlist_id}/grant/'
+)
+def revoke_wishlist_access(
+        request: HttpRequest,
+):
+    pass
+
+
+@wishlists_router.get(
+    "/{wishlist_id}/grant/",
+)
+def get_all_wishlist_access(
+        request: HttpRequest,
+):
+    pass
+
+
+@wishlists_router.get(
+    "/{wishlist_id}/grant/{profile_id}",
+)
+def get_wishlist_access_by_user_id(
+        request: HttpRequest,
+):
+    pass
+
+

@@ -72,8 +72,8 @@ def test_wish_reserve_conflict_other_user(
         payload={},
     )
     body = response.json()
-    assert body["detail"] == "Желание уже забронировано"
-    assert response.status_code == HTTPStatus.CONFLICT
+    assert body["detail"] == "Такой wishlist не существует или у вас нет прав для просмотра"
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.django_db
