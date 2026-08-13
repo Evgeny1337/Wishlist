@@ -5,7 +5,7 @@ from django.db.models import Q
 from ninja import Schema, ModelSchema, FilterSchema, FilterConfigDict
 from pydantic import Field, PositiveInt, HttpUrl
 
-from wishlists.models import WishList, Wish, Event
+from wishlists.models import WishList, Wish, Event, WishListAccess
 
 
 class DetailSchema(Schema):
@@ -117,5 +117,19 @@ class WishListQueryParams(FilterSchema):
 
     model_config = FilterConfigDict(expression_connector="AND")
 
+
+class WishlistAccessResponse(ModelSchema):
+    class Meta:
+        model = WishListAccess
+        fields = ["id", "wishlist", 'profile']
+
+
+class WishListAccessRequest(Schema):
+    profile: int = Field(description="Id профиля")
+
+
+class WishListAccessDeleteResponse(Schema):
+    wishlist: int = Field(description="Id удаленного вишлиста")
+    profile: int = Field(description="Id удаленного профиля")
 
 

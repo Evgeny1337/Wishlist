@@ -6,7 +6,7 @@ import pytest
 
 from invites.jwt_tokens import issue_token_pair
 from invites.models import TelegramProfile
-from wishlists.models import WishList, Wish, WishReservation, Event
+from wishlists.models import WishList, Wish, WishReservation, Event, WishListAccess
 
 
 @pytest.fixture(autouse=True)
@@ -87,3 +87,15 @@ def event_factory(db):
         )
 
     return _create_event
+
+
+@pytest.fixture()
+def wishlist_access_factory(db):
+    def _create_access(wishlist: WishList, profile: TelegramProfile):
+        access, _ = WishListAccess.objects.get_or_create(
+            wishlist=wishlist,
+            profile=profile,
+        )
+        return access
+
+    return _create_access

@@ -10,8 +10,9 @@ from django.http import HttpRequest
 from ninja import Router, Status, Path, Query
 
 from invites.auth import TelegramJWTAuth
+from .access import can_view_wishlist, can_edit_wishlist
 from invites.models import TelegramProfile
-from .models import WishList, Wish, WishReservation
+from .models import WishList, Wish, WishReservation, WishListAccess
 from .schemas import (
     WishListResponseSchema,
     DetailSchema,
@@ -21,21 +22,13 @@ from .schemas import (
     WishCreateRequest,
     WishResponse,
     PathWish, WishUpdateRequest, WishReservationResponse, WishDeleteReserveResponse, WishListQueryParams,
+    WishListAccessDeleteResponse, WishListAccessRequest, WishlistAccessResponse,
 )
 
 wishlists_router = Router(auth=TelegramJWTAuth())
 
 
 _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
-
-
-def can_edit_wishlist(profile: TelegramProfile):
-    return Q(owner=profile)
-
-
-def can_view_wishlist(profile: TelegramProfile):
-    return Q(wishlist_accesses__profile=profile) | Q(owner=profile)
-
 
 
 @wishlists_router.post(
@@ -66,7 +59,7 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
 )
 def get_wishlists(request: HttpRequest):
     profile = request.auth
-    wishlists = WishList.objects.filter(can_view_wishlist(profile))
+    wishlists = WishList.objects.filter(can_view_wishlist(profile)).distinct()
     return Status(HTTPStatus.OK, wishlists)
 
 
@@ -272,6 +265,9 @@ def get_reserve_wish(
         path: Path[PathWish],
 ):
     profile = request.auth
+    wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
     try:
         WishReservation.objects.get(wish=wish, profile=profile)
@@ -298,6 +294,9 @@ def delete_reserve_wish(
         path: Path[PathWish],
 ):
     profile = request.auth
+    wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
     wish_reservation = get_object_or_404(WishReservation, wish=wish, profile=profile)
     wish_reservation.delete()
@@ -306,38 +305,80 @@ def delete_reserve_wish(
 
 
 @wishlists_router.post(
-    '/{wishlist_id}/grant/'
+    '/{wishlist_id}/grant/',
+    response={
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.BAD_REQUEST: DetailSchema,
+        HTTPStatus.CREATED: WishlistAccessResponse,
+        HTTPStatus.CONFLICT: DetailSchema,
+    }
 )
 def grant_wishlist_access(
         request: HttpRequest,
+        wishlist_id: int,
+        body: WishListAccessRequest,
 ):
-    pass
+    profile = request.auth
+    grant_profile = get_object_or_404(TelegramProfile, telegram_user_id=body.profile)
+    wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_edit_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
+    if grant_profile == wishlist.owner:
+        raise HttpError(HTTPStatus.BAD_REQUEST, "Владелец вишлиста не может выдавать самому себе access")
+    wishlist_access, created = WishListAccess.objects.get_or_create(
+        wishlist=wishlist,
+        profile=grant_profile,
+
+    )
+    if created:
+        return Status(HTTPStatus.CREATED, wishlist_access)
+    raise HttpError(HTTPStatus.CONFLICT, "Такой access для данного пользователя уже есть")
 
 
 @wishlists_router.delete(
-    '/{wishlist_id}/grant/'
+    '/{wishlist_id}/grant/',
+    response={
+        HTTPStatus.OK: WishListAccessDeleteResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.BAD_REQUEST: DetailSchema,
+    }
 )
 def revoke_wishlist_access(
         request: HttpRequest,
+        wishlist_id: int,
+        body: WishListAccessRequest,
 ):
-    pass
-
+    profile = request.auth
+    wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_edit_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав")
+    grant_profile = get_object_or_404(TelegramProfile, telegram_user_id=body.profile)
+    if grant_profile == wishlist.owner:
+        raise HttpError(HTTPStatus.BAD_REQUEST, "Владелец вишлиста не может выдавать самому себе access")
+    wishlist_access = get_object_or_404(WishListAccess, wishlist=wishlist_id, profile=grant_profile)
+    wishlist_access.delete()
+    return Status(HTTPStatus.OK, WishListAccessDeleteResponse(
+        wishlist=wishlist.id,
+        profile=grant_profile.id,
+    ))
 
 @wishlists_router.get(
     "/{wishlist_id}/grant/",
+    response={
+        HTTPStatus.OK: List[WishlistAccessResponse],
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
 )
 def get_all_wishlist_access(
         request: HttpRequest,
+        wishlist_id: int,
 ):
-    pass
+    profile = request.auth
+    wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_edit_wishlist(profile)).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав")
+    wishlist_access = WishListAccess.objects.filter(wishlist_id=wishlist_id)
+    return Status(HTTPStatus.OK, wishlist_access)
 
-
-@wishlists_router.get(
-    "/{wishlist_id}/grant/{profile_id}",
-)
-def get_wishlist_access_by_user_id(
-        request: HttpRequest,
-):
-    pass
 
 

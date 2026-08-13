@@ -40,10 +40,15 @@ def api_client(client):
                 **kw,
             )
 
-        def delete(self, url, headers=None, **kw):
+        def delete(self, url, headers=None, payload=None, **kw):
+            extra = {}
+            if payload is not None:
+                extra["data"] = json.dumps(payload)
+                extra["content_type"] = "application/json"
             return client.delete(
                 url,
                 headers=headers or {},
+                **extra,
                 **kw,
             )
 
