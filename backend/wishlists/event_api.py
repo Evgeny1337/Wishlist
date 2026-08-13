@@ -4,17 +4,19 @@ from typing import List
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Status
+from ninja.errors import HttpError
 from pydantic import PositiveInt
 
 from invites.auth import TelegramJWTAuth
-from wishlists.models import WishList, Event
+from invites.models import TelegramProfile
+from wishlists.models import WishList, Event, EventAccess
 from wishlists.schemas import (
     DetailSchema,
     EventDeleteResponse,
     EventRequest,
     EventResponse,
     EventUpdateRequest,
-    ValidationErrorSchema,
+    ValidationErrorSchema, EventAccessRequest, EventAccessResponse,
 )
 
 events_router = Router(auth=TelegramJWTAuth())
@@ -110,3 +112,60 @@ def delete_event(request: HttpRequest, event_id: PositiveInt):
         HTTPStatus.OK,
         EventDeleteResponse(deleted_count=deleted_count, details=details),
     )
+
+
+@events_router.post(
+    '/{event_id}/access/',
+    response={
+        HTTPStatus.CREATED: EventAccessResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.CONFLICT: DetailSchema,
+    }
+)
+def create_event_access(request: HttpRequest, event_id: PositiveInt, payload: EventAccessRequest):
+    owner = request.auth
+    profile = get_object_or_404(TelegramProfile, telegram_user_id=payload.profile)
+    if owner == profile:
+        raise HttpError(HTTPStatus.BAD_REQUEST, "Нельзя выдать права самому себе")
+    event = get_object_or_404(Event, pk=event_id, owner=owner)
+    event_access, created = EventAccess.objects.get_or_create(
+        profile=profile,
+        event=event,
+    )
+    if created:
+        return Status(HTTPStatus.CREATED, event_access)
+    raise HttpError(HTTPStatus.CONFLICT, f"Доступ к событию {event.id} для профиля {profile.telegram_user_id} уже существует")
+
+
+@events_router.get(
+    "/{event_id}/access/",
+    response={
+        HTTPStatus.OK: List[EventAccessResponse] | [],
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def get_all_event_access(request: HttpRequest, event_id: PositiveInt):
+    owner = request.auth
+    event = get_object_or_404(Event, pk=event_id, owner=owner)
+    event_access = EventAccess.objects.filter(event=event)
+    if not event_access.exists():
+        return Status(HTTPStatus.OK, [])
+    return Status(HTTPStatus.OK, event_access)
+
+
+@events_router.delete(
+    "/{event_id}/access/",
+    response={
+        HTTPStatus.OK: EventAccessResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def delete_event_access(request: HttpRequest, event_id: PositiveInt, payload: EventAccessRequest):
+    owner = request.auth
+    event = get_object_or_404(Event, pk=event_id, owner=owner)
+    profile = get_object_or_404(TelegramProfile, telegram_user_id=payload.profile)
+    event_access = get_object_or_404(EventAccess, profile=profile, event=event)
+    event_access.delete()
+    return Status(HTTPStatus.OK, event_access)
+
+

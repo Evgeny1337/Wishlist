@@ -54,3 +54,16 @@ class WishListAccess(models.Model):
                 name="unique_wishlist_access",
             )
         ]
+
+
+class EventAccess(models.Model):
+    profile = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="event_accesses")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="event_accesses")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "event"],
+                name="unique_event_access",
+            )
+        ]

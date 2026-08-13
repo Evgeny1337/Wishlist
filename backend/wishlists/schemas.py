@@ -5,7 +5,7 @@ from django.db.models import Q
 from ninja import Schema, ModelSchema, FilterSchema, FilterConfigDict
 from pydantic import Field, PositiveInt, HttpUrl
 
-from wishlists.models import WishList, Wish, Event, WishListAccess
+from wishlists.models import WishList, Wish, Event, WishListAccess, EventAccess
 
 
 class DetailSchema(Schema):
@@ -75,12 +75,12 @@ class WishUpdateRequest(Schema):
 
 
 class WishReservationResponse(Schema):
-    wish: int = Field(description="id Желания")
+    wish: PositiveInt = Field(description="id Желания")
     is_reserved: bool = Field(description="Статус резервации")
 
 
 class WishDeleteReserveResponse(Schema):
-    wish: int = Field(description="id Удаленного желания")
+    wish: PositiveInt = Field(description="id Удаленного желания")
 
 
 class EventRequest(Schema):
@@ -101,7 +101,7 @@ class EventDeleteResponse(Schema):
 
 
 class EventResponse(ModelSchema):
-    wishlist_id: int = Field(description="ID Вишлиста")
+    wishlist_id: PositiveInt = Field(description="ID Вишлиста")
 
     class Meta:
         model = Event
@@ -125,11 +125,21 @@ class WishlistAccessResponse(ModelSchema):
 
 
 class WishListAccessRequest(Schema):
-    profile: int = Field(description="Id профиля")
+    profile: PositiveInt = Field(description="Id профиля")
 
 
 class WishListAccessDeleteResponse(Schema):
-    wishlist: int = Field(description="Id удаленного вишлиста")
-    profile: int = Field(description="Id удаленного профиля")
+    wishlist: PositiveInt = Field(description="Id удаленного вишлиста")
+    profile: PositiveInt = Field(description="Id удаленного профиля")
+
+
+class EventAccessRequest(Schema):
+    profile: PositiveInt = Field(description="Id профиля")
+
+
+class EventAccessResponse(ModelSchema):
+    class Meta:
+        model = EventAccess
+        fields = '__all__'
 
 
