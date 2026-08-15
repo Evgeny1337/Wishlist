@@ -1,6 +1,7 @@
 from http import HTTPStatus
 from typing import List
 
+from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Status
@@ -9,6 +10,7 @@ from pydantic import PositiveInt
 
 from invites.auth import TelegramJWTAuth
 from invites.models import TelegramProfile
+from wishlists.access import can_view_event_wishlist
 from wishlists.models import WishList, Event, EventAccess
 from wishlists.schemas import (
     DetailSchema,
@@ -52,8 +54,8 @@ def create_event(request: HttpRequest, payload: EventRequest):
     },
 )
 def list_events(request: HttpRequest):
-    owner = request.auth
-    events = Event.objects.filter(owner=owner).order_by("starts_at")
+    profile = request.auth
+    events = Event.objects.filter(can_view_event_wishlist(profile=profile)).order_by("starts_at").distinct()
     return Status(HTTPStatus.OK, list(events))
 
 
@@ -66,8 +68,10 @@ def list_events(request: HttpRequest):
     },
 )
 def get_event(request: HttpRequest, event_id: PositiveInt):
-    owner = request.auth
-    event = get_object_or_404(Event, pk=event_id, owner=owner)
+    profile = request.auth
+    event = Event.objects.filter(Q(pk=event_id) & can_view_event_wishlist(profile=profile)).first()
+    if not event:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такого события нет, либо у вас нет прав")
     return Status(HTTPStatus.OK, event)
 
 
@@ -140,7 +144,7 @@ def create_event_access(request: HttpRequest, event_id: PositiveInt, payload: Ev
 @events_router.get(
     "/{event_id}/access/",
     response={
-        HTTPStatus.OK: List[EventAccessResponse] | [],
+        HTTPStatus.OK: List[EventAccessResponse],
         HTTPStatus.NOT_FOUND: DetailSchema,
     }
 )

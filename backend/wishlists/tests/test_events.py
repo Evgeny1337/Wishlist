@@ -406,3 +406,135 @@ def test_delete_event_unauthorized(
     response = api_client.delete(f"/api/events/{event.id}/", headers={})
     assert response.status_code == HTTPStatus.UNAUTHORIZED
     assert Event.objects.filter(id=event.id).exists()
+
+
+@pytest.mark.django_db
+def test_viewer_get_event_ok(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    event = event_factory(wishlist=wishlist, owner=owner, title="party")
+    wishlist_access_factory(wishlist=wishlist, profile=viewer)
+    response = api_client.get(
+        f"/api/events/{event.id}/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["id"] == event.id
+    assert body["title"] == "party"
+    assert body["wishlist_id"] == wishlist.id
+
+
+@pytest.mark.django_db
+def test_viewer_get_event_without_access_404(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    event = event_factory(wishlist=wishlist, owner=owner)
+    response = api_client.get(
+        f"/api/events/{event.id}/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert "detail" in response.json()
+
+
+@pytest.mark.django_db
+def test_viewer_list_events_includes_shared(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    stranger = profile_factory(telegram_user_id=3)
+    shared_wishlist = wishlist_factory(telegram_profile=owner, title="shared")
+    private_wishlist = wishlist_factory(telegram_profile=stranger, title="private")
+    shared_event = event_factory(
+        wishlist=shared_wishlist,
+        owner=owner,
+        title="shared-event",
+    )
+    event_factory(
+        wishlist=private_wishlist,
+        owner=stranger,
+        title="private-event",
+    )
+    own_wishlist = wishlist_factory(telegram_profile=viewer, title="mine")
+    own_event = event_factory(
+        wishlist=own_wishlist,
+        owner=viewer,
+        title="own-event",
+    )
+    wishlist_access_factory(wishlist=shared_wishlist, profile=viewer)
+    response = api_client.get(
+        "/api/events/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    ids = {item["id"] for item in body}
+    assert ids == {shared_event.id, own_event.id}
+
+
+@pytest.mark.django_db
+def test_viewer_patch_event_404(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    event = event_factory(wishlist=wishlist, owner=owner, title="keep")
+    wishlist_access_factory(wishlist=wishlist, profile=viewer)
+    response = api_client.patch(
+        f"/api/events/{event.id}/",
+        headers=auth_headers(viewer.telegram_user_id),
+        payload={"title": "hacked"},
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    event.refresh_from_db()
+    assert event.title == "keep"
+
+
+@pytest.mark.django_db
+def test_viewer_delete_event_404(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    event = event_factory(wishlist=wishlist, owner=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=viewer)
+    response = api_client.delete(
+        f"/api/events/{event.id}/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert Event.objects.filter(id=event.id).exists()
