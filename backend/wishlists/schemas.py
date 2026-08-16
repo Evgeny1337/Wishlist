@@ -3,9 +3,9 @@ from datetime import datetime
 
 from django.db.models import Q
 from ninja import Schema, ModelSchema, FilterSchema, FilterConfigDict
-from pydantic import Field, PositiveInt, HttpUrl
+from pydantic import Field, PositiveInt, HttpUrl, model_validator
 
-from wishlists.models import WishList, Wish, Event, WishListAccess, EventAccess
+from wishlists.models import WishList, Wish, Event, WishListAccess, EventAccess, GiftPlan, GiftPlanItem
 
 
 class DetailSchema(Schema):
@@ -141,5 +141,58 @@ class EventAccessResponse(ModelSchema):
     class Meta:
         model = EventAccess
         fields = '__all__'
+
+
+class GiftPlanRequest(Schema):
+    title: str = Field(description="Заголовок")
+    occurs_at: datetime = Field(description="Дата события")
+
+
+class GiftPlanResponse(ModelSchema):
+    class Meta:
+        model = GiftPlan
+        fields = ['id', 'title', 'occurs_at', 'created_at']
+
+
+class GiftPlanUpdateRequest(Schema):
+    title: Optional[str] = None
+    occurs_at: Optional[datetime] = None
+
+
+class GiftPlanDeleteResponse(Schema):
+    plan_id: PositiveInt = Field(description="Id Удаленного события")
+
+
+class GiftPlanItemRequest(Schema):
+    title: str | None = Field(description="Заголовок подарка к событию", default=None)
+    url: HttpUrl | None = Field(description="Ссылка на подарок", default=None)
+    wish: PositiveInt | None = Field(description="Id желания", default=None)
+
+    @model_validator(mode="after")
+    def wish_or_manual(self):
+        if self.wish is None and not self.title:
+            raise ValueError("Нужен wish либо title")
+        return self
+
+
+class GiftPlanItemResponse(ModelSchema):
+    class Meta:
+        model = GiftPlanItem
+        fields = ['id', 'title', 'url', 'created_at', 'wish']
+
+
+class GiftPlanItemPatchDeletePath(Schema):
+    plan_id: PositiveInt = Field(description="Id события")
+    item_id: PositiveInt = Field(description="Id подарка к событию")
+
+
+class GiftPlanItemDeleteResponse(Schema):
+    item_id: PositiveInt = Field(description="Id удаленного подарка")
+
+
+
+
+
+
 
 

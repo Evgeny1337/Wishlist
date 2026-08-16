@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 
 from invites.models import TelegramProfile
 
@@ -65,5 +66,35 @@ class EventAccess(models.Model):
             models.UniqueConstraint(
                 fields=["profile", "event"],
                 name="unique_event_access",
+            )
+        ]
+
+
+class GiftPlan(models.Model):
+    owner = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="gift_plan")
+    title = models.CharField(max_length=200)
+    occurs_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class GiftPlanItem(models.Model):
+    plan = models.ForeignKey(GiftPlan, on_delete=models.CASCADE, related_name="plan_items")
+    wish = models.ForeignKey(Wish, on_delete=models.SET_NULL, related_name="plan_items", null=True)
+    title = models.CharField(max_length=200)
+    url = models.URLField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if self.wish:
+            self.title = self.wish.title
+            self.url = self.wish.url
+        super().save(*args, **kwargs)
+        return self
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(wish__isnull=False) | (Q(title__isnull=False) & Q(url__isnull=False)),
+                name="xor_gift_plan_item",
             )
         ]
