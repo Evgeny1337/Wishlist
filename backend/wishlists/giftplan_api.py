@@ -6,7 +6,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router, Status, Path
 from ninja.errors import HttpError
-from pydantic import PositiveInt, TypeAdapter, HttpUrl
+from pydantic import PositiveInt
 
 from invites.auth import TelegramJWTAuth
 from wishlists.access import  can_view_wish
@@ -100,8 +100,8 @@ def create_gift_plan_item(request: HttpRequest, plan_id: PositiveInt, payload: G
         if attr == 'wish':
             wish = wishes.first()
             gift_plan_item.wish = wish
-            setattr(gift_plan_item, 'title', wish.title)
-            setattr(gift_plan_item, 'url', TypeAdapter(HttpUrl).validate_python(wish.url))
+        elif attr == 'url':
+            setattr(gift_plan_item, attr, str(value))
         else:
             setattr(gift_plan_item, attr, value)
     gift_plan_item.plan = gift_plan
@@ -121,19 +121,19 @@ def update_gift_plan_item(request: HttpRequest, path: Path[GiftPlanItemPatchDele
     if payload.wish and not wishes.exists():
         raise HttpError(HTTPStatus.NOT_FOUND, "У вас нет прав на данный wishlist")
     plan_item = get_object_or_404(GiftPlanItem, id=path.item_id, plan_id=path.plan_id)
+    if payload.wish:
+        plan_item.wish = wishes.first()
+        plan_item.save()
+        return Status(HTTPStatus.OK, plan_item)
     updates = payload.model_dump(exclude_unset=True)
     updated_fields = []
     for attr, value in updates.items():
-        if attr == 'wish':
-            wish = wishes.first()
-            plan_item.wish = wish
-            setattr(plan_item, 'title', wish.title)
-            setattr(plan_item, 'url', TypeAdapter(HttpUrl).validate_python(wish.url))
-            updated_fields.extend(['title', 'url', 'wish'])
-        else:
-            setattr(plan_item, attr, value)
-            updated_fields.append(attr)
-    plan_item.save(update_fields=updated_fields)
+        if attr == "url" and value is not None:
+            value = str(value)
+        setattr(plan_item, attr, value)
+        updated_fields.append(attr)
+    if updated_fields:
+        plan_item.save(update_fields=updated_fields)
     return Status(HTTPStatus.OK, plan_item)
 
 

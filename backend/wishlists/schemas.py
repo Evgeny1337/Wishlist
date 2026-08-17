@@ -176,9 +176,11 @@ class GiftPlanItemRequest(Schema):
 
 
 class GiftPlanItemResponse(ModelSchema):
+    url: str = Field(description="Ссылка на сайт")
     class Meta:
         model = GiftPlanItem
         fields = ['id', 'title', 'url', 'created_at', 'wish']
+
 
 
 class GiftPlanItemPatchDeletePath(Schema):

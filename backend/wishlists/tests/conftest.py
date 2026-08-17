@@ -6,7 +6,7 @@ import pytest
 
 from invites.jwt_tokens import issue_token_pair
 from invites.models import TelegramProfile
-from wishlists.models import WishList, Wish, WishReservation, Event, WishListAccess
+from wishlists.models import WishList, Wish, WishReservation, Event, WishListAccess, GiftPlan, GiftPlanItem
 
 
 @pytest.fixture(autouse=True)
@@ -99,3 +99,31 @@ def wishlist_access_factory(db):
         return access
 
     return _create_access
+
+
+@pytest.fixture()
+def gift_plan_factory(db):
+    def _create_gift_plan(profile: TelegramProfile, title: str = "test",):
+        return GiftPlan.objects.create(
+            title=title,
+            owner=profile,
+            occurs_at=timezone.now(),
+        )
+    return _create_gift_plan
+
+
+@pytest.fixture()
+def gift_plan_item_factory(db):
+    def _create_gift_plan_item(
+        plan: GiftPlan,
+        title: str = "test",
+        url: str = "",
+        wish: Wish | None = None,
+    ):
+        return GiftPlanItem.objects.create(
+            plan=plan,
+            title=title,
+            url=url,
+            wish=wish,
+        )
+    return _create_gift_plan_item
