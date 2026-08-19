@@ -214,7 +214,6 @@ def update_wish(
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
     wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), id=path.wish_id, wishlist=wishlist)
     updates = body.model_dump(exclude_unset=True)
-    preview_data = None
     if 'url' in updates:
         updates["url"] = str(updates["url"]) if updates["url"] else ""
         if updates["url"]:
@@ -244,6 +243,7 @@ def update_wish(
 def reserve_wish(
         request: HttpRequest,
         path: Path[PathWish],
+        is_anonymous: bool = Query(True),
 ):
     profile = request.auth
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
@@ -254,6 +254,7 @@ def reserve_wish(
         WishReservation.objects.create(
             wish=wish,
             profile=profile,
+            is_anonymous=is_anonymous,
         )
     except IntegrityError as exc:
         raise HttpError(

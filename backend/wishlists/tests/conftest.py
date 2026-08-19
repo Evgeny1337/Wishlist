@@ -63,10 +63,15 @@ def wishlist_factory(db):
 
 @pytest.fixture()
 def wish_reservation_factory(db):
-    def _create_wish_reservation(wish: Wish, profile: TelegramProfile):
+    def _create_wish_reservation(
+        wish: Wish,
+        profile: TelegramProfile,
+        is_anonymous: bool = True,
+    ):
         return WishReservation.objects.create(
             profile=profile,
             wish=wish,
+            is_anonymous=is_anonymous,
         )
     return _create_wish_reservation
 

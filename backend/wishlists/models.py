@@ -29,6 +29,7 @@ class WishReservation(models.Model):
     wish = models.ForeignKey(Wish, on_delete=models.CASCADE, related_name="reservation")
     profile = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="reservations")
     created_at = models.DateTimeField(auto_now_add=True)
+    is_anonymous = models.BooleanField(default=True)
     class Meta:
         constraints = [
             models.UniqueConstraint(
