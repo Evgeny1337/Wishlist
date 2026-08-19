@@ -1,5 +1,6 @@
 from http import HTTPStatus
 
+import httpx
 import pytest
 
 from wishlists.models import Wish, WishReservation
@@ -44,8 +45,17 @@ def test_create_wish_incorrect_url(api_client, profile, wishlist_factory, auth_h
 
 
 @pytest.mark.django_db
-def test_create_wish_happy_path(api_client, profile, wishlist_factory, auth_headers):
+def test_create_wish_happy_path(api_client, profile, wishlist_factory, auth_headers, httpx_mock):
     wishlist = wishlist_factory(telegram_profile=profile)
+    httpx_mock.add_response(
+        url="https://test-kek.ru/",
+        text="""
+            <html><head>
+            <meta property="og:title" content="OG test title" />
+            <meta property="og:image" content="https://cdn.test-kek.ru/img.png" />
+            </head></html>
+        """,
+    )
     response = api_client.post(
         f"/api/wishlists/{wishlist.id}/wishes/",
         payload={
@@ -62,6 +72,8 @@ def test_create_wish_happy_path(api_client, profile, wishlist_factory, auth_head
     assert body["is_reserved"] is False
     assert body["reserved_by_me"] is False
     assert body["priority"] == Wish.WishPriority.LOW
+    assert body["preview_title"] == "OG test title"
+    assert body["preview_image_url"] == "https://cdn.test-kek.ru/img.png"
     assert response.status_code == HTTPStatus.CREATED
     assert Wish.objects.filter(wishlist=wishlist, id=body["id"]).exists()
 
@@ -468,8 +480,101 @@ def test_update_wish_null_url(
     body = response.json()
     assert response.status_code == HTTPStatus.OK
     assert body["url"] == ""
+    assert body["preview_title"] == ""
+    assert body["preview_image_url"] == ""
     wish.refresh_from_db()
     assert wish.url == ""
+    assert wish.preview_title == ""
+    assert wish.preview_image_url == ""
+
+
+@pytest.mark.django_db
+def test_create_wish_preview_http_error_still_created(
+    api_client,
+    profile,
+    wishlist_factory,
+    auth_headers,
+    httpx_mock,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    httpx_mock.add_exception(httpx.ConnectError("cannot connect"))
+    response = api_client.post(
+        f"/api/wishlists/{wishlist.id}/wishes/",
+        payload={"title": "test", "url": "https://broken-preview.ru"},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.CREATED
+    assert body["preview_title"] == ""
+    assert body["preview_image_url"] == ""
+    wish = Wish.objects.get(id=body["id"])
+    assert wish.preview_title == ""
+    assert wish.preview_image_url == ""
+
+
+@pytest.mark.django_db
+def test_update_wish_url_updates_preview(
+    api_client,
+    profile,
+    wishlist_factory,
+    wish_factory,
+    auth_headers,
+    httpx_mock,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(wishlist=wishlist)
+    httpx_mock.add_response(
+        url="https://new-preview.ru/",
+        text="""
+            <html><head>
+            <meta property="og:title" content="Updated preview" />
+            <meta property="og:image" content="https://cdn.new-preview.ru/pic.jpg" />
+            </head></html>
+        """,
+    )
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+        payload={"url": "https://new-preview.ru"},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["preview_title"] == "Updated preview"
+    assert body["preview_image_url"] == "https://cdn.new-preview.ru/pic.jpg"
+    wish.refresh_from_db()
+    assert wish.preview_title == "Updated preview"
+    assert wish.preview_image_url == "https://cdn.new-preview.ru/pic.jpg"
+
+
+@pytest.mark.django_db
+def test_update_wish_title_only_keeps_preview(
+    api_client,
+    profile,
+    wishlist_factory,
+    wish_factory,
+    auth_headers,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    wish = wish_factory(
+        wishlist=wishlist,
+        title="old",
+        preview_title="saved-preview",
+        preview_image_url="https://saved.preview/image.jpg",
+    )
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+        payload={"title": "new"},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["title"] == "new"
+    assert body["preview_title"] == "saved-preview"
+    assert body["preview_image_url"] == "https://saved.preview/image.jpg"
+    wish.refresh_from_db()
+    assert wish.title == "new"
+    assert wish.preview_title == "saved-preview"
+    assert wish.preview_image_url == "https://saved.preview/image.jpg"
 
 
 @pytest.mark.django_db

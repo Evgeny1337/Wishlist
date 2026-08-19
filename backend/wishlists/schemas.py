@@ -59,7 +59,7 @@ class WishResponse(ModelSchema):
 
     class Meta:
         model = Wish
-        fields = ["id", "title", "url", "note", "created_at", "priority"]
+        fields = ["id", "title", "url", "note", "created_at", "priority", 'preview_title', 'preview_image_url']
 
 
 class PathWish(Schema):

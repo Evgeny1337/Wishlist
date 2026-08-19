@@ -8,10 +8,12 @@ from ninja.errors import HttpError
 from pydantic import PositiveInt
 from django.http import HttpRequest
 from ninja import Router, Status, Path, Query
+from typing_extensions import NoExtraItems
 
 from invites.auth import TelegramJWTAuth
 from .access import can_view_wishlist, can_edit_wishlist
 from invites.models import TelegramProfile
+from .link_preview import fetch_link_preview
 from .models import WishList, Wish, WishReservation, WishListAccess
 from .schemas import (
     WishListResponseSchema,
@@ -120,12 +122,15 @@ def delete_wishlist(
 def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreateRequest):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=wishlist_id)
+    preview_data = fetch_link_preview(str(data.url)) if data.url else None
     wish = Wish.objects.create(
         wishlist=wishlist,
         title=data.title,
         note=data.note,
         url=str(data.url) if data.url else "",
         priority=data.priority,
+        preview_title = preview_data['preview_title'] if preview_data else "",
+        preview_image_url = preview_data['preview_image_url'] if preview_data else "",
     )
     return Status(HTTPStatus.CREATED, wish)
 
@@ -208,10 +213,18 @@ def update_wish(
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
     wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), id=path.wish_id, wishlist=wishlist)
+    updates = body.model_dump(exclude_unset=True)
+    preview_data = None
+    if 'url' in updates:
+        updates["url"] = str(updates["url"]) if updates["url"] else ""
+        if updates["url"]:
+            preview = fetch_link_preview(updates["url"])
+            updates["preview_title"] = preview["preview_title"]
+            updates["preview_image_url"] = preview["preview_image_url"]
+        else:
+            updates["preview_title"] = ""
+            updates["preview_image_url"] = ""
     with transaction.atomic():
-        updates = body.model_dump(exclude_unset=True)
-        if "url" in updates:
-            updates["url"] = str(updates["url"]) if updates["url"] else ""
         if updates:
             wish.reservation.all().delete()
             for attr, value in updates.items():

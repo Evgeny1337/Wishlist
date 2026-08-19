@@ -21,6 +21,8 @@ class Wish(models.Model):
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     priority = models.IntegerField(choices=WishPriority, default=WishPriority.LOW)
+    preview_title = models.CharField(blank=True, max_length=200, default="")
+    preview_image_url = models.URLField(blank=True, default="")
 
 
 class WishReservation(models.Model):
