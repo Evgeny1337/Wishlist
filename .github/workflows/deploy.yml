@@ -20,4 +20,15 @@ jobs:
             cd "${{ secrets.DEPLOY_PATH }}"
             git pull
             docker compose up -d --build
-            curl -sf http://127.0.0.1:8000/api/health
+            for i in $(seq 1 30); do
+              if curl -sf http://127.0.0.1:8000/api/health; then
+                echo
+                echo "health ok"
+                exit 0
+              fi
+              echo "waiting for api... ($i)"
+              sleep 2
+            done
+            echo "health check failed"
+            docker compose logs --tail=80 api
+            exit 1
