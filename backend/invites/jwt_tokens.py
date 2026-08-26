@@ -1,5 +1,7 @@
-import jwt
 import time
+import uuid
+
+import jwt
 from django.conf import settings
 
 from invites.pydantic_models import TokenPair
@@ -13,13 +15,15 @@ def issue_token_pair(telegram_user_id: int) -> TokenPair:
         'sub': str(telegram_user_id),
         'exp': exp_access,
         'iat': int(time_now),
-        'type':'access'
+        'type': 'access',
+        'jti': str(uuid.uuid4()),
     }, key=settings.JWT_SECRET, algorithm='HS256')
     jwt_refresh = jwt.encode({
         'sub': str(telegram_user_id),
         'exp': exp_refresh,
         'iat': int(time_now),
-        'type':'refresh'
+        'type': 'refresh',
+        'jti': str(uuid.uuid4()),
     }, key=settings.JWT_SECRET, algorithm='HS256')
     return TokenPair(
         access_token=jwt_access,
