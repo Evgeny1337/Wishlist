@@ -33,4 +33,5 @@ jobs:
       POSTGRES_PASSWORD: 'wishlist'
       POSTGRES_USER: 'wishlist'
       POSTGRES_DB: 'wishlist'
+      JWT_SECRET: 'test-jwt-secret-at-least-32-bytes!!'
 
