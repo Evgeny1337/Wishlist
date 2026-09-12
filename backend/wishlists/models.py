@@ -101,3 +101,21 @@ class GiftPlanItem(models.Model):
                 name="xor_gift_plan_item",
             )
         ]
+
+
+class Reminder(models.Model):
+    owner = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="reminders")
+    title = models.CharField(max_length=200, null=True, blank=True)
+    remind_at = models.DateTimeField()
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="reminders", null=True, blank=True)
+    is_sent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "event"],
+                name="unique_owner_event_reminder",
+            )
+        ]
+

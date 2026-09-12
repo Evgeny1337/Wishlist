@@ -5,7 +5,7 @@ from django.db.models import Q
 from ninja import Schema, ModelSchema, FilterSchema, FilterConfigDict
 from pydantic import Field, PositiveInt, HttpUrl, model_validator
 
-from wishlists.models import WishList, Wish, Event, WishListAccess, EventAccess, GiftPlan, GiftPlanItem
+from wishlists.models import WishList, Wish, Event, WishListAccess, EventAccess, GiftPlan, GiftPlanItem, Reminder
 
 
 class DetailSchema(Schema):
@@ -190,6 +190,31 @@ class GiftPlanItemPatchDeletePath(Schema):
 
 class GiftPlanItemDeleteResponse(Schema):
     item_id: PositiveInt = Field(description="Id удаленного подарка")
+
+
+class ReminderRequest(Schema):
+    title: Optional[str] = Field(description="Описание", default=None)
+    remind_at: datetime = Field(description="Дата напоминания")
+    event_id: PositiveInt | None = Field(
+        description="Id события (опционально)",
+        default=None,
+    )
+
+
+class ReminderResponse(ModelSchema):
+    class Meta:
+        model = Reminder
+        fields = ["id", "title", "remind_at", "event", "created_at", "is_sent"]
+
+
+class ReminderUpdateRequest(Schema):
+    title: Optional[str] = Field(description="Описание", default=None)
+    remind_at: Optional[datetime] = Field(description="Дата напоминания", default=None)
+    event_id: PositiveInt | None = Field(
+        description="Id события (опционально)",
+        default=None,
+    )
+
 
 
 

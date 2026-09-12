@@ -6,7 +6,7 @@ import pytest
 
 from invites.jwt_tokens import issue_token_pair
 from invites.models import TelegramProfile
-from wishlists.models import WishList, Wish, WishReservation, Event, WishListAccess, GiftPlan, GiftPlanItem
+from wishlists.models import WishList, Wish, WishReservation, Event, WishListAccess, GiftPlan, GiftPlanItem, Reminder
 
 
 @pytest.fixture(autouse=True)
@@ -132,3 +132,20 @@ def gift_plan_item_factory(db):
             wish=wish,
         )
     return _create_gift_plan_item
+
+
+@pytest.fixture()
+def reminder_factory(db):
+    def _create_reminder(
+            event: Event,
+            owner: TelegramProfile,
+            title: str = "test",
+            remind_at: datetime | None = None,
+    ):
+        return Reminder.objects.create(
+            event=event,
+            owner=owner,
+            title=title,
+            remind_at=remind_at or timezone.now(),
+        )
+    return _create_reminder
