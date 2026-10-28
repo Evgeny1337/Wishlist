@@ -61,7 +61,9 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
 )
 def get_wishlists(request: HttpRequest):
     profile = request.auth
-    wishlists = WishList.objects.filter(can_view_wishlist(profile)).distinct()
+    wishlists = (WishList.objects.
+                 prefetch_related('events').
+                 filter(can_view_wishlist(profile)).distinct())
     return Status(HTTPStatus.OK, wishlists)
 
 
@@ -78,7 +80,11 @@ def get_wishlist(
     wishlist_id: PositiveInt,
 ):
     profile = request.auth
-    wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_view_wishlist(profile)).first()
+    wishlist = (
+        WishList.objects.prefetch_related("events")
+        .filter(Q(id=wishlist_id) & can_view_wishlist(profile))
+        .first()
+    )
     if wishlist is None:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     return Status(HTTPStatus.OK, wishlist)

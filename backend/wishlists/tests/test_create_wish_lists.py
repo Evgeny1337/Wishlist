@@ -68,5 +68,8 @@ def test_wishlist_create_happy_path(api_client, profile, auth_headers):
         payload={"title": "test"},
         headers=auth_headers(profile.telegram_user_id),
     )
+    body = response.json()
     assert response.status_code == HTTPStatus.CREATED
     assert WishList.objects.filter(owner=profile, title="test").exists()
+    assert body["title"] == "test"
+    assert body["events"] == []

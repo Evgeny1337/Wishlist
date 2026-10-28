@@ -11,6 +11,13 @@ from wishlists.models import WishList, Wish, Event, WishListAccess, EventAccess,
 class DetailSchema(Schema):
     detail: str = Field(description="Сообщение об ошибке")
 
+class EventResponse(ModelSchema):
+    wishlist_id: PositiveInt = Field(description="ID Вишлиста")
+
+    class Meta:
+        model = Event
+        fields = ["id", "title", "created_at", "starts_at"]
+
 
 class ValidationErrorSchema(Schema):
     detail: list[Any] = Field(description="Список ошибок валидации")
@@ -26,6 +33,8 @@ class WishListCreateRequest(Schema):
 
 
 class WishListResponseSchema(ModelSchema):
+    events: list[EventResponse] = []
+
     class Meta:
         model = WishList
         fields = ["id", "owner", "title", "created_at"]
@@ -100,12 +109,7 @@ class EventDeleteResponse(Schema):
     details: dict[str, int] = Field(description="Количество удаленных объектов")
 
 
-class EventResponse(ModelSchema):
-    wishlist_id: PositiveInt = Field(description="ID Вишлиста")
 
-    class Meta:
-        model = Event
-        fields = ["id", "title", "created_at", "starts_at"]
 
 
 class WishListQueryParams(FilterSchema):
