@@ -231,3 +231,106 @@ def test_wishlist_access_revoke_then_404(
         headers=auth_headers(profile.telegram_user_id),
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_someoneelse_list_happy_path(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    shared = wishlist_factory(telegram_profile=owner, title="shared")
+    wishlist_factory(telegram_profile=owner, title="not-shared")
+    wishlist_factory(telegram_profile=viewer, title="viewer-own")
+    wishlist_access_factory(wishlist=shared, profile=viewer)
+
+    response = api_client.get(
+        "/api/wishlists/someoneelse",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert len(body) == 1
+    assert body[0]["id"] == shared.id
+    assert body[0]["title"] == "shared"
+    assert body[0]["owner"] == owner.id
+
+
+@pytest.mark.django_db
+def test_someoneelse_list_empty(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist_factory(telegram_profile=owner, title="foreign")
+    wishlist_factory(telegram_profile=viewer, title="own")
+
+    response = api_client.get(
+        "/api/wishlists/someoneelse",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_someoneelse_excludes_own_wishlists(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    """Даже при access на чужой список свои wishlists в someoneelse не попадают."""
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    shared = wishlist_factory(telegram_profile=owner, title="shared")
+    own = wishlist_factory(telegram_profile=viewer, title="own")
+    wishlist_access_factory(wishlist=shared, profile=viewer)
+
+    response = api_client.get(
+        "/api/wishlists/someoneelse",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    ids = {item["id"] for item in response.json()}
+    assert response.status_code == HTTPStatus.OK
+    assert shared.id in ids
+    assert own.id not in ids
+
+
+@pytest.mark.django_db
+def test_someoneelse_multiple_shared(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner_a = profile_factory(telegram_user_id=1)
+    owner_b = profile_factory(telegram_user_id=2)
+    viewer = profile_factory(telegram_user_id=3)
+    wl_a = wishlist_factory(telegram_profile=owner_a, title="a")
+    wl_b = wishlist_factory(telegram_profile=owner_b, title="b")
+    wishlist_access_factory(wishlist=wl_a, profile=viewer)
+    wishlist_access_factory(wishlist=wl_b, profile=viewer)
+
+    response = api_client.get(
+        "/api/wishlists/someoneelse",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    ids = {item["id"] for item in response.json()}
+    assert response.status_code == HTTPStatus.OK
+    assert ids == {wl_a.id, wl_b.id}
+
+
+@pytest.mark.django_db
+def test_someoneelse_without_auth(api_client):
+    response = api_client.get("/api/wishlists/someoneelse", headers={})
+    assert response.status_code == HTTPStatus.UNAUTHORIZED

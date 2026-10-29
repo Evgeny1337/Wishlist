@@ -11,7 +11,7 @@ from ninja import Router, Status, Path, Query
 
 
 from invites.auth import TelegramJWTAuth
-from .access import can_view_wishlist, can_edit_wishlist
+from .access import can_view_wishlist, can_edit_wishlist, can_view_someone_else_wishlist
 from invites.models import TelegramProfile
 from .link_preview import fetch_link_preview
 from .models import WishList, Wish, WishReservation, WishListAccess
@@ -399,6 +399,23 @@ def get_all_wishlist_access(
         raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав")
     wishlist_access = WishListAccess.objects.filter(wishlist_id=wishlist_id)
     return Status(HTTPStatus.OK, wishlist_access)
+
+
+@wishlists_router.get(
+    '/someoneelse',
+    response={
+        HTTPStatus.OK: List[WishListResponseSchema],
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def get_someone_else_wishlists(
+        request: HttpRequest
+):
+    profile = request.auth
+    wishlists = (WishList.objects.
+                 prefetch_related('events').
+                 filter(can_view_someone_else_wishlist(profile)))
+    return Status(HTTPStatus.OK, wishlists)
 
 
 
