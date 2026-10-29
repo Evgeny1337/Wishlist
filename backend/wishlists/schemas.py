@@ -1,5 +1,5 @@
 from typing import Any, Literal, Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from django.db.models import Q
 from ninja import Schema, ModelSchema, FilterSchema, FilterConfigDict
@@ -13,10 +13,25 @@ class DetailSchema(Schema):
 
 class EventResponse(ModelSchema):
     wishlist_id: PositiveInt = Field(description="ID Вишлиста")
+    is_expired: bool = Field(description="Просроченое событие")
+    days_lest: int | None = Field(description="Осталось дней")
 
     class Meta:
         model = Event
         fields = ["id", "title", "created_at", "starts_at"]
+
+    @staticmethod
+    def resolve_is_expired(obj):
+        date_now = datetime.now(timezone.utc).date()
+        event_date = obj.starts_at.date()
+        return date_now > event_date
+
+    @staticmethod
+    def resolve_days_lest(obj):
+        today = datetime.now(timezone.utc).date()
+        event_day = obj.starts_at.date()
+        diff = (event_day - today).days
+        return diff if diff >= 0 else None
 
 
 class ValidationErrorSchema(Schema):
