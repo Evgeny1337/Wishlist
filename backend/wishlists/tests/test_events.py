@@ -126,6 +126,42 @@ def test_get_event_happy_path(
 
 
 @pytest.mark.django_db
+def test_event_is_expired_and_days_lest(
+    api_client,
+    profile,
+    auth_headers,
+    wishlist_factory,
+    event_factory,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    now = timezone.now()
+    expired = event_factory(
+        wishlist=wishlist,
+        owner=profile,
+        starts_at=now - timedelta(days=1),
+    )
+    upcoming = event_factory(
+        wishlist=wishlist,
+        owner=profile,
+        starts_at=now + timedelta(days=3),
+    )
+
+    expired_body = api_client.get(
+        f"/api/events/{expired.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+    ).json()
+    assert expired_body["is_expired"] is True
+    assert expired_body["days_lest"] is None
+
+    upcoming_body = api_client.get(
+        f"/api/events/{upcoming.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+    ).json()
+    assert upcoming_body["is_expired"] is False
+    assert upcoming_body["days_lest"] == 3
+
+
+@pytest.mark.django_db
 def test_get_event_someone_else(
     api_client,
     profile_factory,

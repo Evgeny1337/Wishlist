@@ -8,7 +8,7 @@ from ninja.errors import HttpError
 from pydantic import PositiveInt
 from django.http import HttpRequest
 from ninja import Router, Status, Path, Query
-from typing_extensions import NoExtraItems
+
 
 from invites.auth import TelegramJWTAuth
 from .access import can_view_wishlist, can_edit_wishlist

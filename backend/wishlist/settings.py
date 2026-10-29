@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-load_dotenv(override=True)
+load_dotenv(override=False)
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
