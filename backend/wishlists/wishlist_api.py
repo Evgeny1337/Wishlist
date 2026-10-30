@@ -16,15 +16,21 @@ from invites.models import TelegramProfile
 from .link_preview import fetch_link_preview
 from .models import WishList, Wish, WishReservation, WishListAccess
 from .schemas import (
-    WishListResponseSchema,
+    DeletedResponse,
     DetailSchema,
     ValidationErrorSchema,
-    WishListCreateRequest,
-    DeletedResponse,
     WishCreateRequest,
+    WishListAccessDeleteResponse,
+    WishListAccessRequest,
+    WishListAccessResponse,
+    WishListCreateRequest,
+    WishListQueryParams,
+    WishListResponse,
+    WishPath,
+    WishReservationResponse,
+    WishReserveDeleteResponse,
     WishResponse,
-    PathWish, WishUpdateRequest, WishReservationResponse, WishDeleteReserveResponse, WishListQueryParams,
-    WishListAccessDeleteResponse, WishListAccessRequest, WishlistAccessResponse,
+    WishUpdateRequest,
 )
 
 wishlists_router = Router(auth=TelegramJWTAuth())
@@ -36,7 +42,7 @@ _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
 @wishlists_router.post(
     "/",
     response={
-        HTTPStatus.CREATED: WishListResponseSchema,
+        HTTPStatus.CREATED: WishListResponse,
         HTTPStatus.BAD_REQUEST: DetailSchema,
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
         HTTPStatus.NOT_FOUND: DetailSchema,
@@ -54,7 +60,7 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
 @wishlists_router.get(
     "/",
     response={
-        HTTPStatus.OK: List[WishListResponseSchema],
+        HTTPStatus.OK: List[WishListResponse],
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
         HTTPStatus.NOT_FOUND: DetailSchema,
     },
@@ -70,7 +76,7 @@ def get_wishlists(request: HttpRequest):
 @wishlists_router.get(
     "/{wishlist_id}/",
     response={
-        HTTPStatus.OK: WishListResponseSchema,
+        HTTPStatus.OK: WishListResponse,
         HTTPStatus.NOT_FOUND: DetailSchema,
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
@@ -151,7 +157,7 @@ def create_wish(request: HttpRequest, wishlist_id: PositiveInt, data: WishCreate
 )
 def get_wish(
         request: HttpRequest,
-        path: Path[PathWish],
+        path: Path[WishPath],
 ):
     profile = request.auth
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
@@ -193,7 +199,7 @@ def get_wishes(
 )
 def delete_wish(
         request: HttpRequest,
-        path: Path[PathWish],
+        path: Path[WishPath],
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
@@ -213,7 +219,7 @@ def delete_wish(
 )
 def update_wish(
         request: HttpRequest,
-        path: Path[PathWish],
+        path: Path[WishPath],
         body: WishUpdateRequest,
 ):
     profile = request.auth
@@ -248,7 +254,7 @@ def update_wish(
 )
 def reserve_wish(
         request: HttpRequest,
-        path: Path[PathWish],
+        path: Path[WishPath],
         is_anonymous: bool = Query(True),
 ):
     profile = request.auth
@@ -282,7 +288,7 @@ def reserve_wish(
 )
 def get_reserve_wish(
         request: HttpRequest,
-        path: Path[PathWish],
+        path: Path[WishPath],
 ):
     profile = request.auth
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
@@ -305,13 +311,13 @@ def get_reserve_wish(
 @wishlists_router.delete(
     "/{wishlist_id}/wishes/{wish_id}/reserve/",
     response={
-        HTTPStatus.OK: WishDeleteReserveResponse,
+        HTTPStatus.OK: WishReserveDeleteResponse,
         HTTPStatus.NOT_FOUND: DetailSchema,
     }
 )
 def delete_reserve_wish(
         request: HttpRequest,
-        path: Path[PathWish],
+        path: Path[WishPath],
 ):
     profile = request.auth
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
@@ -320,7 +326,7 @@ def delete_reserve_wish(
     wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
     wish_reservation = get_object_or_404(WishReservation, wish=wish, profile=profile)
     wish_reservation.delete()
-    return Status(HTTPStatus.OK, WishDeleteReserveResponse(
+    return Status(HTTPStatus.OK, WishReserveDeleteResponse(
         wish=wish.id))
 
 
@@ -329,7 +335,7 @@ def delete_reserve_wish(
     response={
         HTTPStatus.NOT_FOUND: DetailSchema,
         HTTPStatus.BAD_REQUEST: DetailSchema,
-        HTTPStatus.CREATED: WishlistAccessResponse,
+        HTTPStatus.CREATED: WishListAccessResponse,
         HTTPStatus.CONFLICT: DetailSchema,
     }
 )
@@ -385,7 +391,7 @@ def revoke_wishlist_access(
 @wishlists_router.get(
     "/{wishlist_id}/grant/",
     response={
-        HTTPStatus.OK: List[WishlistAccessResponse],
+        HTTPStatus.OK: List[WishListAccessResponse],
         HTTPStatus.NOT_FOUND: DetailSchema,
     }
 )
@@ -404,7 +410,7 @@ def get_all_wishlist_access(
 @wishlists_router.get(
     '/someoneelse',
     response={
-        HTTPStatus.OK: List[WishListResponseSchema],
+        HTTPStatus.OK: List[WishListResponse],
         HTTPStatus.NOT_FOUND: DetailSchema,
     }
 )

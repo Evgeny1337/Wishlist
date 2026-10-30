@@ -13,12 +13,14 @@ from invites.models import TelegramProfile
 from wishlists.access import can_view_event_wishlist
 from wishlists.models import WishList, Event, EventAccess
 from wishlists.schemas import (
+    DeletedResponse,
     DetailSchema,
-    EventDeleteResponse,
-    EventRequest,
+    EventAccessRequest,
+    EventAccessResponse,
+    EventCreateRequest,
     EventResponse,
     EventUpdateRequest,
-    ValidationErrorSchema, EventAccessRequest, EventAccessResponse,
+    ValidationErrorSchema,
 )
 
 events_router = Router(auth=TelegramJWTAuth())
@@ -34,7 +36,7 @@ _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
 )
-def create_event(request: HttpRequest, payload: EventRequest):
+def create_event(request: HttpRequest, payload: EventCreateRequest):
     owner = request.auth
     wishlist = get_object_or_404(WishList, pk=payload.wishlist, owner=owner)
     event = Event.objects.create(
@@ -103,7 +105,7 @@ def update_event(request: HttpRequest, event_id: PositiveInt, payload: EventUpda
 @events_router.delete(
     "/{event_id}/",
     response={
-        HTTPStatus.OK: EventDeleteResponse,
+        HTTPStatus.OK: DeletedResponse,
         HTTPStatus.NOT_FOUND: DetailSchema,
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
@@ -114,7 +116,7 @@ def delete_event(request: HttpRequest, event_id: PositiveInt):
     deleted_count, details = event.delete()
     return Status(
         HTTPStatus.OK,
-        EventDeleteResponse(deleted_count=deleted_count, details=details),
+        DeletedResponse(deleted_count=deleted_count, details=details),
     )
 
 

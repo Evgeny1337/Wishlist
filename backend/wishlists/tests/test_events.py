@@ -126,7 +126,7 @@ def test_get_event_happy_path(
 
 
 @pytest.mark.django_db
-def test_event_is_expired_and_days_lest(
+def test_event_is_expired_and_days_left(
     api_client,
     profile,
     auth_headers,
@@ -151,14 +151,14 @@ def test_event_is_expired_and_days_lest(
         headers=auth_headers(profile.telegram_user_id),
     ).json()
     assert expired_body["is_expired"] is True
-    assert expired_body["days_lest"] is None
+    assert expired_body["days_left"] is None
 
     upcoming_body = api_client.get(
         f"/api/events/{upcoming.id}/",
         headers=auth_headers(profile.telegram_user_id),
     ).json()
     assert upcoming_body["is_expired"] is False
-    assert upcoming_body["days_lest"] == 3
+    assert upcoming_body["days_left"] == 3
 
 
 @pytest.mark.django_db

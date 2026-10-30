@@ -11,7 +11,7 @@ from invites.auth import TelegramJWTAuth
 from wishlists.models import Event, Reminder
 from wishlists.schemas import (
     DetailSchema,
-    ReminderRequest,
+    ReminderCreateRequest,
     ReminderResponse,
     ReminderUpdateRequest,
     ValidationErrorSchema,
@@ -34,7 +34,7 @@ def _owned_event_or_404(event_id: int, owner) -> Event:
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
 )
-def create_reminder(request: HttpRequest, payload: ReminderRequest):
+def create_reminder(request: HttpRequest, payload: ReminderCreateRequest):
     owner = request.auth
     event = None
     if payload.event_id is not None:

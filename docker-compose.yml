@@ -35,3 +35,4 @@ services:
 
 volumes:
   wishlist_pg_data:
+

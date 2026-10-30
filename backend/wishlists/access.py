@@ -17,6 +17,3 @@ def can_view_someone_else_wishlist(profile: TelegramProfile):
 def can_view_event_wishlist(profile: TelegramProfile):
     return Q(wishlist__wishlist_accesses__profile=profile) | Q(owner=profile)
 
-def can_view_wish(profile: TelegramProfile):
-    return Q(wishlist__wishlist_accesses__profile=profile) | Q(wishlist__owner=profile)
-

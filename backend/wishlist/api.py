@@ -2,7 +2,6 @@ from ninja import NinjaAPI
 from pydantic import BaseModel
 import invites.api
 import invites.telegram_webapp
-from wishlists.giftplan_api import gift_plan_router
 from wishlists.reminder_api import reminder_router
 from wishlists.wishlist_api import wishlists_router
 from wishlists.event_api import events_router
@@ -14,7 +13,6 @@ api.add_router('/invites/', invites.api.router)
 api.add_router('/telegram_webapp/', invites.telegram_webapp.router)
 api.add_router('/wishlists/', wishlists_router)
 api.add_router('/events/', events_router)
-api.add_router('/gifts/', gift_plan_router)
 api.add_router('/reminders/', reminder_router)
 
 class HealthResponse(BaseModel):
