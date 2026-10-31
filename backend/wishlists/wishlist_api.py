@@ -18,6 +18,7 @@ from .models import WishList, Wish, WishReservation, WishListAccess
 from .schemas import (
     DeletedResponse,
     DetailSchema,
+    ProfileResponse,
     ValidationErrorSchema,
     WishCreateRequest,
     WishListAccessDeleteResponse,
@@ -424,4 +425,18 @@ def get_someone_else_wishlists(
     return Status(HTTPStatus.OK, wishlists)
 
 
-
+@wishlists_router.get(
+    "/{wishlist_id}/access_users/",
+    response={
+        HTTPStatus.OK: List[ProfileResponse],
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    },
+)
+def get_wishlist_access_users(
+    request: HttpRequest,
+    wishlist_id: int,
+):
+    profile = request.auth
+    wishlist = get_object_or_404(WishList, id=wishlist_id, owner=profile)
+    profiles = TelegramProfile.objects.filter(wishlist_accesses__wishlist=wishlist)
+    return Status(HTTPStatus.OK, list(profiles))

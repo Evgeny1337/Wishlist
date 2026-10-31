@@ -334,3 +334,86 @@ def test_someoneelse_multiple_shared(
 def test_someoneelse_without_auth(api_client):
     response = api_client.get("/api/wishlists/someoneelse", headers={})
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_access_users_happy_path(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner = profile_factory(telegram_user_id=1, username="owner")
+    viewer_a = profile_factory(telegram_user_id=2, username="alice")
+    viewer_b = profile_factory(telegram_user_id=3, username="bob")
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=viewer_a)
+    wishlist_access_factory(wishlist=wishlist, profile=viewer_b)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/access_users/",
+        headers=auth_headers(owner.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert {item["telegram_user_id"] for item in body} == {
+        viewer_a.telegram_user_id,
+        viewer_b.telegram_user_id,
+    }
+    assert {item["username"] for item in body} == {"alice", "bob"}
+    assert all(set(item) == {"telegram_user_id", "username"} for item in body)
+
+
+@pytest.mark.django_db
+def test_access_users_empty(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    wishlist = wishlist_factory(telegram_profile=owner)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/access_users/",
+        headers=auth_headers(owner.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_access_users_not_owner(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=viewer)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/access_users/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_access_users_without_auth(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+):
+    owner = profile_factory(telegram_user_id=1)
+    wishlist = wishlist_factory(telegram_profile=owner)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/access_users/",
+        headers={},
+    )
+    assert response.status_code == HTTPStatus.UNAUTHORIZED

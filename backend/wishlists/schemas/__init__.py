@@ -26,6 +26,7 @@ from wishlists.schemas.wish import (
     WishResponse,
     WishUpdateRequest,
 )
+from wishlists.schemas.profiles import ProfileResponse
 from wishlists.schemas.wishlist import WishListCreateRequest, WishListResponse
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "EventCreateRequest",
     "EventResponse",
     "EventUpdateRequest",
+    "ProfileResponse",
     "ReminderCreateRequest",
     "ReminderResponse",
     "ReminderUpdateRequest",
