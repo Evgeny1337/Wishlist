@@ -59,19 +59,6 @@ class WishListAccess(models.Model):
         ]
 
 
-class EventAccess(models.Model):
-    profile = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="event_accesses")
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="event_accesses")
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["profile", "event"],
-                name="unique_event_access",
-            )
-        ]
-
-
 class Reminder(models.Model):
     owner = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="reminders")
     title = models.CharField(max_length=200, null=True, blank=True)

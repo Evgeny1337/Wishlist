@@ -7,8 +7,6 @@ from wishlists.schemas.access import (
 )
 from wishlists.schemas.common import DeletedResponse, DetailSchema, ValidationErrorSchema
 from wishlists.schemas.event import (
-    EventAccessRequest,
-    EventAccessResponse,
     EventCreateRequest,
     EventResponse,
     EventUpdateRequest,
@@ -32,8 +30,6 @@ from wishlists.schemas.wishlist import WishListCreateRequest, WishListResponse
 __all__ = [
     "DeletedResponse",
     "DetailSchema",
-    "EventAccessRequest",
-    "EventAccessResponse",
     "EventCreateRequest",
     "EventResponse",
     "EventUpdateRequest",

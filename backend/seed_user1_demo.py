@@ -16,7 +16,6 @@ from django.utils import timezone
 from invites.models import TelegramProfile
 from wishlists.models import (
     Event,
-    EventAccess,
     Reminder,
     Wish,
     WishList,
@@ -27,7 +26,6 @@ from wishlists.models import (
 
 def clear_owner_data(owner: TelegramProfile) -> None:
     Reminder.objects.filter(owner=owner).delete()
-    EventAccess.objects.filter(event__owner=owner).delete()
     Event.objects.filter(owner=owner).delete()
     WishReservation.objects.filter(profile=owner).delete()
     WishReservation.objects.filter(wish__wishlist__owner=owner).delete()
@@ -197,8 +195,6 @@ def main() -> None:
         wishlist=home,
         starts_at=now.replace(month=12, day=31, hour=20, minute=0, second=0, microsecond=0),
     )
-    EventAccess.objects.create(profile=friend, event=event_bday)
-
     Reminder.objects.create(
         owner=owner,
         title="Купить торт и свечи",

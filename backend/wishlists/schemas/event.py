@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from ninja import ModelSchema, Schema
 from pydantic import Field, PositiveInt
 
-from wishlists.models import Event, EventAccess
+from wishlists.models import Event
 
 
 class EventResponse(ModelSchema):
@@ -39,13 +39,3 @@ class EventUpdateRequest(Schema):
     title: str | None = Field(description="Наименование", min_length=1, default=None)
     wishlist: PositiveInt | None = Field(description="ID Вишлиста", default=None)
     starts_at: datetime | None = Field(description="Дата события", default=None)
-
-
-class EventAccessRequest(Schema):
-    profile: PositiveInt = Field(description="Id профиля")
-
-
-class EventAccessResponse(ModelSchema):
-    class Meta:
-        model = EventAccess
-        fields = "__all__"
