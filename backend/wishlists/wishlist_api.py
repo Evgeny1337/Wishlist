@@ -27,6 +27,7 @@ from .schemas import (
     WishListCreateRequest,
     WishListQueryParams,
     WishListResponse,
+    WishListUpdateRequest,
     WishPath,
     WishReservationResponse,
     WishReserveDeleteResponse,
@@ -94,6 +95,32 @@ def get_wishlist(
     )
     if wishlist is None:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
+    return Status(HTTPStatus.OK, wishlist)
+
+
+@wishlists_router.patch(
+    "/{wishlist_id}/",
+    response={
+        HTTPStatus.OK: WishListResponse,
+        HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
+    },
+)
+def update_wishlist(
+    request: HttpRequest,
+    wishlist_id: PositiveInt,
+    data: WishListUpdateRequest,
+):
+    profile = request.auth
+    wishlist = WishList.objects.filter(owner=profile, id=wishlist_id).first()
+    if wishlist is None:
+        raise HttpError(HTTPStatus.NOT_FOUND, "Такого вишлиста нету")
+    updates = data.model_dump(exclude_unset=True)
+    if updates:
+        for attr, value in updates.items():
+            setattr(wishlist, attr, value)
+        wishlist.save(update_fields=list(updates))
+    wishlist = WishList.objects.prefetch_related("events").get(pk=wishlist.pk)
     return Status(HTTPStatus.OK, wishlist)
 
 

@@ -73,3 +73,19 @@ def test_wishlist_create_happy_path(api_client, profile, auth_headers):
     assert WishList.objects.filter(owner=profile, title="test").exists()
     assert body["title"] == "test"
     assert body["events"] == []
+
+
+@pytest.mark.django_db
+def test_wishlist_update_happy_path(api_client, profile, wishlist_factory, auth_headers):
+    wishlist = wishlist_factory(telegram_profile=profile, title="old")
+    response = api_client.patch(
+        f"/api/wishlists/{wishlist.id}/",
+        payload={"title": "new-title"},
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["title"] == "new-title"
+    assert body["events"] == []
+    wishlist.refresh_from_db()
+    assert wishlist.title == "new-title"

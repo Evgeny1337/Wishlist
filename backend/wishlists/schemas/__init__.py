@@ -25,7 +25,11 @@ from wishlists.schemas.wish import (
     WishUpdateRequest,
 )
 from wishlists.schemas.profiles import ProfileResponse
-from wishlists.schemas.wishlist import WishListCreateRequest, WishListResponse
+from wishlists.schemas.wishlist import (
+    WishListCreateRequest,
+    WishListResponse,
+    WishListUpdateRequest,
+)
 
 __all__ = [
     "DeletedResponse",
@@ -45,6 +49,7 @@ __all__ = [
     "WishListCreateRequest",
     "WishListQueryParams",
     "WishListResponse",
+    "WishListUpdateRequest",
     "WishPath",
     "WishReservationResponse",
     "WishReserveDeleteResponse",
