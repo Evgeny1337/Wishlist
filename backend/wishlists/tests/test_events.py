@@ -574,3 +574,114 @@ def test_viewer_delete_event_404(
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert Event.objects.filter(id=event.id).exists()
+
+
+@pytest.mark.django_db
+def test_wishlist_events_owner_happy_path(
+    api_client,
+    profile,
+    auth_headers,
+    wishlist_factory,
+    event_factory,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    later = event_factory(
+        wishlist=wishlist,
+        owner=profile,
+        title="later",
+        starts_at=timezone.now() + timedelta(days=10),
+    )
+    sooner = event_factory(
+        wishlist=wishlist,
+        owner=profile,
+        title="sooner",
+        starts_at=timezone.now() + timedelta(days=2),
+    )
+    other = wishlist_factory(telegram_profile=profile, title="other")
+    event_factory(wishlist=other, owner=profile, title="not-here")
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/events/",
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert [item["id"] for item in body] == [sooner.id, later.id]
+    assert [item["title"] for item in body] == ["sooner", "later"]
+
+
+@pytest.mark.django_db
+def test_wishlist_events_viewer_with_access(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    event = event_factory(wishlist=wishlist, owner=owner, title="shared-event")
+    wishlist_access_factory(wishlist=wishlist, profile=viewer)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/events/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert len(body) == 1
+    assert body[0]["id"] == event.id
+    assert body[0]["title"] == "shared-event"
+
+
+@pytest.mark.django_db
+def test_wishlist_events_without_access_404(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    stranger = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    event_factory(wishlist=wishlist, owner=owner)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/events/",
+        headers=auth_headers(stranger.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_wishlist_events_empty(
+    api_client,
+    profile,
+    auth_headers,
+    wishlist_factory,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/events/",
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_wishlist_events_unauthorized(
+    api_client,
+    profile,
+    wishlist_factory,
+):
+    wishlist = wishlist_factory(telegram_profile=profile)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/events/",
+        headers={},
+    )
+    assert response.status_code == HTTPStatus.UNAUTHORIZED

@@ -14,7 +14,7 @@ from invites.auth import TelegramJWTAuth
 from .access import can_view_wishlist, can_edit_wishlist, can_view_someone_else_wishlist
 from invites.models import TelegramProfile
 from .link_preview import fetch_link_preview
-from .models import WishList, Wish, WishReservation, WishListAccess
+from .models import WishList, Wish, WishReservation, WishListAccess, Event
 from .schemas import (
     DeletedResponse,
     DetailSchema,
@@ -31,7 +31,7 @@ from .schemas import (
     WishReservationResponse,
     WishReserveDeleteResponse,
     WishResponse,
-    WishUpdateRequest,
+    WishUpdateRequest, EventResponse,
 )
 
 wishlists_router = Router(auth=TelegramJWTAuth())
@@ -440,3 +440,27 @@ def get_wishlist_access_users(
     wishlist = get_object_or_404(WishList, id=wishlist_id, owner=profile)
     profiles = TelegramProfile.objects.filter(wishlist_accesses__wishlist=wishlist)
     return Status(HTTPStatus.OK, list(profiles))
+
+
+@wishlists_router.get(
+    "/{wishlist_id}/events/",
+    response={
+        HTTPStatus.OK: List[EventResponse],
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    }
+)
+def get_wishlist_events(
+    request: HttpRequest,
+    wishlist_id: int,
+):
+    profile = request.auth
+    wishlist = WishList.objects.filter(
+        Q(pk=wishlist_id) & can_view_wishlist(profile)
+    ).first()
+    if not wishlist:
+        raise HttpError(
+            HTTPStatus.NOT_FOUND,
+            "Такого вишлиста нет либо у вас нет к нему доступа",
+        )
+    events = Event.objects.filter(wishlist=wishlist).order_by("starts_at")
+    return Status(HTTPStatus.OK, list(events))
