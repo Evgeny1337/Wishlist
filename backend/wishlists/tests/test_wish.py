@@ -314,6 +314,35 @@ def test_get_wish_reserved_by_someone_else(
     assert response.status_code == HTTPStatus.OK
     assert body["is_reserved"] is True
     assert body["reserved_by_me"] is False
+    assert body["reserved_by_user"] == {
+        "telegram_user_id": other.telegram_user_id,
+        "username": other.username,
+    }
+
+
+@pytest.mark.django_db
+def test_get_wish_reserved_by_user_hidden_when_wishlist_anonymous(
+    api_client,
+    profile,
+    profile_factory,
+    wishlist_factory,
+    wish_factory,
+    wish_reservation_factory,
+    auth_headers,
+):
+    other = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=profile, is_anonymous=True)
+    wish = wish_factory(wishlist=wishlist)
+    wish_reservation_factory(wish=wish, profile=other)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/",
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert body["is_reserved"] is True
+    assert body["reserved_by_me"] is False
+    assert body["reserved_by_user"] is None
 
 
 @pytest.mark.django_db

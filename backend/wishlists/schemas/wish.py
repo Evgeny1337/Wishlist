@@ -5,6 +5,7 @@ from ninja import FilterConfigDict, FilterSchema, ModelSchema, Schema
 from pydantic import Field, HttpUrl, PositiveInt
 
 from wishlists.models import Wish
+from .profiles import ProfileResponse
 
 
 class WishCreateRequest(Schema):
@@ -31,20 +32,25 @@ class WishResponse(ModelSchema):
     wishlist_id: int = Field(description="ID Вишлиста")
     is_reserved: bool = Field(description="Статус резервирования")
     reserved_by_me: bool = Field(description="Забронировано мной")
+    reserved_by_user: ProfileResponse | None = Field(description="Кем забронировано", default=None)
+
+    @staticmethod
+    def resolve_reserved_by_user(obj):
+        if obj.wishlist.is_anonymous:
+            return None
+        reservation = obj.reservation.all().first()
+        return reservation.profile if reservation else None
 
     @staticmethod
     def resolve_is_reserved(obj):
-        reservation = list(obj.reservation.all())
-        return len(reservation) > 0
+        return obj.reservation.all().first() is not None
 
     @staticmethod
     def resolve_reserved_by_me(obj, context):
-        request = context["request"]
-        reservation = list(obj.reservation.all())
-        if len(reservation) > 0:
-            reservation_profile = reservation[0].profile
-            return reservation_profile.pk == request.auth.pk
-        return False
+        reservation = obj.reservation.all().first()
+        if reservation is None:
+            return False
+        return reservation.profile_id == context["request"].auth.pk
 
     class Meta:
         model = Wish
