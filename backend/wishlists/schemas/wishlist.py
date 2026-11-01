@@ -7,15 +7,16 @@ from wishlists.schemas.event import EventResponse
 
 class WishListCreateRequest(Schema):
     title: str = Field(description="Заголовок", min_length=1)
+    is_anonymous: bool | None = Field(description="Не показывать бронь", default=None)
 
 
 class WishListUpdateRequest(Schema):
     title: str | None = Field(description="Заголовок", default=None, min_length=1)
-
+    is_anonymous: bool | None = Field(description="Не показывать бронь", default=None)
 
 class WishListResponse(ModelSchema):
     events: list[EventResponse] = []
 
     class Meta:
         model = WishList
-        fields = ["id", "owner", "title", "created_at"]
+        fields = ["id", "owner", "title", "created_at", "is_anonymous"]

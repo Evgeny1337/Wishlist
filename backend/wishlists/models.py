@@ -7,7 +7,7 @@ class WishList(models.Model):
     owner = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="wishlists")
     title = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
-
+    is_anonymous = models.BooleanField(default=False)
 
 class Wish(models.Model):
     class WishPriority(models.IntegerChoices):
@@ -28,7 +28,7 @@ class WishReservation(models.Model):
     wish = models.ForeignKey(Wish, on_delete=models.CASCADE, related_name="reservation")
     profile = models.ForeignKey(TelegramProfile, on_delete=models.CASCADE, related_name="reservations")
     created_at = models.DateTimeField(auto_now_add=True)
-    is_anonymous = models.BooleanField(default=True)
+
     class Meta:
         constraints = [
             models.UniqueConstraint(

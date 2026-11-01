@@ -180,7 +180,6 @@ def main() -> None:
     WishReservation.objects.create(
         wish=wishes_birthday[0],
         profile=friend,
-        is_anonymous=False,
     )
 
     event_bday = Event.objects.create(
