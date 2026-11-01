@@ -55,6 +55,7 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
     wishlist = WishList.objects.create(
         owner=profile,
         title=data.title,
+        is_anonymous=data.is_anonymous,
     )
     return Status(HTTPStatus.CREATED, wishlist)
 
@@ -283,7 +284,6 @@ def update_wish(
 def reserve_wish(
         request: HttpRequest,
         path: Path[WishPath],
-        is_anonymous: bool = Query(True),
 ):
     profile = request.auth
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
@@ -294,7 +294,6 @@ def reserve_wish(
         WishReservation.objects.create(
             wish=wish,
             profile=profile,
-            is_anonymous=is_anonymous,
         )
     except IntegrityError as exc:
         raise HttpError(
