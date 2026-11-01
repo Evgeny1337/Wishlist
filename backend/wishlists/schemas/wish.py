@@ -30,8 +30,8 @@ class WishUpdateRequest(Schema):
 
 class WishResponse(ModelSchema):
     wishlist_id: int = Field(description="ID Вишлиста")
-    is_reserved: bool = Field(description="Статус резервирования")
-    reserved_by_me: bool = Field(description="Забронировано мной")
+    is_reserved: bool | None = Field(description="Статус резервирования", default=None)
+    reserved_by_me: bool | None = Field(description="Забронировано мной", default=None)
     reserved_by_user: ProfileResponse | None = Field(description="Кем забронировано", default=None)
 
     @staticmethod

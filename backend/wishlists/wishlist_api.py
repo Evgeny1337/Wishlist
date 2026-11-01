@@ -55,7 +55,6 @@ def create_wishlist(request: HttpRequest, data: WishListCreateRequest):
     wishlist = WishList.objects.create(
         owner=profile,
         title=data.title,
-        is_anonymous=False if data.is_anonymous is None else data.is_anonymous,
     )
     return Status(HTTPStatus.CREATED, wishlist)
 
@@ -192,11 +191,7 @@ def get_wish(
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
     if wishlist is None:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
-    wish = get_object_or_404(
-        Wish.objects.select_related("wishlist").prefetch_related("reservation__profile"),
-        wishlist=wishlist,
-        id=path.wish_id,
-    )
+    wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), wishlist=wishlist, id=path.wish_id)
     return Status(HTTPStatus.OK, wish)
 
 
@@ -217,12 +212,7 @@ def get_wishes(
     wishlist = WishList.objects.filter(Q(id=wishlist_id) & can_view_wishlist(profile)).first()
     if wishlist is None:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
-    wishes = (
-        Wish.objects.select_related("wishlist")
-        .prefetch_related("reservation__profile")
-        .filter(wishlist=wishlist)
-        .order_by("-priority", "-created_at")
-    )
+    wishes = Wish.objects.prefetch_related('reservation').filter(wishlist=wishlist).order_by("-priority", "-created_at")
     wishes = filters.filter(wishes)
     return Status(HTTPStatus.OK, wishes)
 
@@ -262,11 +252,7 @@ def update_wish(
 ):
     profile = request.auth
     wishlist = get_object_or_404(WishList, owner=profile, id=path.wishlist_id)
-    wish = get_object_or_404(
-        Wish.objects.select_related("wishlist").prefetch_related("reservation__profile"),
-        id=path.wish_id,
-        wishlist=wishlist,
-    )
+    wish = get_object_or_404(Wish.objects.prefetch_related('reservation'), id=path.wish_id, wishlist=wishlist)
     updates = body.model_dump(exclude_unset=True)
     if 'url' in updates:
         updates["url"] = str(updates["url"]) if updates["url"] else ""
@@ -297,6 +283,7 @@ def update_wish(
 def reserve_wish(
         request: HttpRequest,
         path: Path[WishPath],
+        is_anonymous: bool = Query(True),
 ):
     profile = request.auth
     wishlist = WishList.objects.filter(Q(id=path.wishlist_id) & can_view_wishlist(profile)).first()
@@ -307,6 +294,7 @@ def reserve_wish(
         WishReservation.objects.create(
             wish=wish,
             profile=profile,
+            is_anonymous=is_anonymous,
         )
     except IntegrityError as exc:
         raise HttpError(
