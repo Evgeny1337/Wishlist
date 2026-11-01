@@ -15,7 +15,7 @@ class WishListUpdateRequest(Schema):
 
 class WishListResponse(ModelSchema):
     events: list[EventResponse] = []
-    is_owner: bool = Field(description="Статус владельца")
+    is_owner: bool = Field(description="Я владелец")
 
     @staticmethod
     def resolve_is_owner(obj, context):
