@@ -16,6 +16,11 @@ class WishListUpdateRequest(Schema):
 
 class WishListResponse(ModelSchema):
     events: list[EventResponse] = []
+    is_owner: bool = Field(description="Мой вишлист")
+
+    @staticmethod
+    def resolve_is_owner(obj, context):
+        return obj.owner_id == context["request"].auth.pk
 
     class Meta:
         model = WishList
