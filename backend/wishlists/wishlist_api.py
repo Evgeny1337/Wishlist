@@ -72,7 +72,7 @@ def get_wishlists(request: HttpRequest):
     profile = request.auth
     wishlists = (WishList.objects.
                  prefetch_related('events').
-                 filter(can_view_wishlist(profile)).distinct())
+                 filter(owner=profile))
     return Status(HTTPStatus.OK, wishlists)
 
 

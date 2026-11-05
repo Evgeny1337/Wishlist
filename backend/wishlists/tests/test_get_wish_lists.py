@@ -150,6 +150,29 @@ def test_wishlist_get_all_empty_wishlists(api_client, profile, auth_headers):
 
 
 @pytest.mark.django_db
+def test_wishlist_get_all_excludes_shared(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    me = profile_factory(telegram_user_id=1)
+    other = profile_factory(telegram_user_id=2)
+    mine = wishlist_factory(telegram_profile=me, title="mine")
+    shared = wishlist_factory(telegram_profile=other, title="shared")
+    wishlist_access_factory(wishlist=shared, profile=me)
+    response = api_client.get(
+        "/api/wishlists/",
+        headers=auth_headers(me.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert len(body) == 1
+    assert body[0]["id"] == mine.id
+
+
+@pytest.mark.django_db
 def test_wishlist_get_all_unauthorized(api_client):
     response = api_client.get("/api/wishlists/", headers={})
     assert response.status_code == HTTPStatus.UNAUTHORIZED
