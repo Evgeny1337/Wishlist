@@ -417,3 +417,99 @@ def test_access_users_without_auth(
         headers={},
     )
     assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_unadded_profiles_happy_path(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner = profile_factory(telegram_user_id=1, username="owner")
+    already = profile_factory(telegram_user_id=2, username="already")
+    candidate = profile_factory(telegram_user_id=3, username="candidate")
+    other_list_guest = profile_factory(telegram_user_id=4, username="other-guest")
+    wishlist = wishlist_factory(telegram_profile=owner)
+    other_wishlist = wishlist_factory(telegram_profile=owner, title="other")
+    wishlist_access_factory(wishlist=wishlist, profile=already)
+    wishlist_access_factory(wishlist=other_wishlist, profile=other_list_guest)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/unadded_profiles/",
+        headers=auth_headers(owner.telegram_user_id),
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    ids = {item["telegram_user_id"] for item in body}
+    assert candidate.telegram_user_id in ids
+    assert other_list_guest.telegram_user_id in ids
+    assert already.telegram_user_id not in ids
+    assert owner.telegram_user_id not in ids
+    assert all(set(item) == {"telegram_user_id", "username"} for item in body)
+
+
+@pytest.mark.django_db
+def test_unadded_profiles_empty_when_all_added(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/unadded_profiles/",
+        headers=auth_headers(owner.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.OK
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_unadded_profiles_not_owner(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+    auth_headers,
+    wishlist_access_factory,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=viewer)
+
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/unadded_profiles/",
+        headers=auth_headers(viewer.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_unadded_profiles_unknown_wishlist(api_client, profile, auth_headers):
+    response = api_client.get(
+        "/api/wishlists/99999/unadded_profiles/",
+        headers=auth_headers(profile.telegram_user_id),
+    )
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_unadded_profiles_without_auth(
+    api_client,
+    wishlist_factory,
+    profile_factory,
+):
+    owner = profile_factory(telegram_user_id=1)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    response = api_client.get(
+        f"/api/wishlists/{wishlist.id}/unadded_profiles/",
+        headers={},
+    )
+    assert response.status_code == HTTPStatus.UNAUTHORIZED

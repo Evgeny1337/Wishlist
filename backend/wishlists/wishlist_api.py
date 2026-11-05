@@ -493,3 +493,21 @@ def get_wishlist_events(
         )
     events = Event.objects.filter(wishlist=wishlist).order_by("starts_at")
     return Status(HTTPStatus.OK, list(events))
+
+
+@wishlists_router.get(
+    "/{wishlist_id}/unadded_profiles/",
+    response={
+        HTTPStatus.OK: List[ProfileResponse],
+        HTTPStatus.NOT_FOUND: DetailSchema,
+    },
+)
+def get_wishlist_unadded_profiles(request: HttpRequest, wishlist_id: int):
+    profile = request.auth
+    wishlist = get_object_or_404(WishList, id=wishlist_id, owner=profile)
+    profiles = (
+        TelegramProfile.objects.exclude(pk=profile.pk)
+        .exclude(wishlist_accesses__wishlist=wishlist)
+        .order_by("id")
+    )
+    return Status(HTTPStatus.OK, list(profiles))
