@@ -278,6 +278,7 @@ def update_wish(
     response={
         HTTPStatus.CREATED: WishReservationResponse,
         HTTPStatus.NOT_FOUND: DetailSchema,
+        HTTPStatus.BAD_REQUEST: DetailSchema,
         HTTPStatus.CONFLICT: DetailSchema,
     }
 )
@@ -290,6 +291,8 @@ def reserve_wish(
     if wishlist is None:
         raise HttpError(HTTPStatus.NOT_FOUND, "Такой wishlist не существует или у вас нет прав для просмотра")
     wish = get_object_or_404(Wish, pk=path.wish_id, wishlist_id=path.wishlist_id)
+    if profile == wishlist.owner:
+        raise HttpError(HTTPStatus.BAD_REQUEST, "Владелец вишлиста не может бронировать свои желания")
     try:
         WishReservation.objects.create(
             wish=wish,

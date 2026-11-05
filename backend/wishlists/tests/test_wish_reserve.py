@@ -8,6 +8,32 @@ from wishlists.models import WishReservation
 @pytest.mark.django_db
 def test_wish_reserve_happy_path(
     api_client,
+    profile_factory,
+    wishlist_factory,
+    wish_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
+    wish = wish_factory(wishlist=wishlist)
+    response = api_client.post(
+        f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
+        headers=auth_headers(guest.telegram_user_id),
+        payload={},
+    )
+    body = response.json()
+    assert body["wish"] == wish.id
+    assert body["is_reserved"] is True
+    assert response.status_code == HTTPStatus.CREATED
+    assert WishReservation.objects.filter(wish=wish, profile=guest).exists()
+
+
+@pytest.mark.django_db
+def test_wish_reserve_owner_forbidden(
+    api_client,
     profile,
     wishlist_factory,
     wish_factory,
@@ -21,30 +47,33 @@ def test_wish_reserve_happy_path(
         payload={},
     )
     body = response.json()
-    assert body["wish"] == wish.id
-    assert body["is_reserved"] is True
-    assert response.status_code == HTTPStatus.CREATED
-    assert WishReservation.objects.filter(wish=wish, profile=profile).exists()
+    assert body["detail"] == "Владелец вишлиста не может бронировать свои желания"
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert not WishReservation.objects.filter(wish=wish).exists()
 
 
 @pytest.mark.django_db
 def test_wish_reserve_already_exists(
     api_client,
-    profile,
+    profile_factory,
     wishlist_factory,
     wish_factory,
+    wishlist_access_factory,
     auth_headers,
 ):
-    wishlist = wishlist_factory(telegram_profile=profile)
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
     wish = wish_factory(wishlist=wishlist)
     api_client.post(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(profile.telegram_user_id),
+        headers=auth_headers(guest.telegram_user_id),
         payload={},
     )
     response = api_client.post(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(profile.telegram_user_id),
+        headers=auth_headers(guest.telegram_user_id),
         payload={},
     )
     body = response.json()
@@ -60,20 +89,24 @@ def test_wish_reserve_conflict_other_user(
     wish_factory,
     auth_headers,
     wish_reservation_factory,
+    wishlist_access_factory,
 ):
     owner = profile_factory(telegram_user_id=1)
-    other = profile_factory(telegram_user_id=2)
+    guest_a = profile_factory(telegram_user_id=2)
+    guest_b = profile_factory(telegram_user_id=3)
     wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest_a)
+    wishlist_access_factory(wishlist=wishlist, profile=guest_b)
     wish = wish_factory(wishlist=wishlist)
-    wish_reservation_factory(wish=wish, profile=owner)
+    wish_reservation_factory(wish=wish, profile=guest_a)
     response = api_client.post(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(other.telegram_user_id),
+        headers=auth_headers(guest_b.telegram_user_id),
         payload={},
     )
     body = response.json()
-    assert body["detail"] == "Такой wishlist не существует или у вас нет прав для просмотра"
-    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert body["detail"] == "Желание уже забронировано"
+    assert response.status_code == HTTPStatus.CONFLICT
 
 
 @pytest.mark.django_db
@@ -137,18 +170,22 @@ def test_get_wish_reserve_not_reserved(
 @pytest.mark.django_db
 def test_get_wish_reserve_happy_path(
     api_client,
-    profile,
+    profile_factory,
     wishlist_factory,
     wish_factory,
     auth_headers,
     wish_reservation_factory,
+    wishlist_access_factory,
 ):
-    wishlist = wishlist_factory(telegram_profile=profile)
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
     wish = wish_factory(wishlist=wishlist)
-    wish_reservation_factory(wish=wish, profile=profile)
+    wish_reservation_factory(wish=wish, profile=guest)
     response = api_client.get(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(profile.telegram_user_id),
+        headers=auth_headers(guest.telegram_user_id),
     )
     body = response.json()
     assert body["wish"] == wish.id
@@ -159,18 +196,22 @@ def test_get_wish_reserve_happy_path(
 @pytest.mark.django_db
 def test_delete_wish_reserve_happy_path(
     api_client,
-    profile,
+    profile_factory,
     wishlist_factory,
     wish_factory,
     auth_headers,
     wish_reservation_factory,
+    wishlist_access_factory,
 ):
-    wishlist = wishlist_factory(telegram_profile=profile)
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
     wish = wish_factory(wishlist=wishlist)
-    wish_reservation_factory(wish=wish, profile=profile)
+    wish_reservation_factory(wish=wish, profile=guest)
     response = api_client.delete(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(profile.telegram_user_id),
+        headers=auth_headers(guest.telegram_user_id),
     )
     body = response.json()
     assert body["wish"] == wish.id
@@ -185,34 +226,42 @@ def test_delete_wish_reserve_someone_else(
     wish_factory,
     auth_headers,
     wish_reservation_factory,
+    wishlist_access_factory,
     profile_factory,
 ):
-    profile_1 = profile_factory(telegram_user_id=1)
-    profile_2 = profile_factory(telegram_user_id=2)
-    wishlist = wishlist_factory(telegram_profile=profile_2)
+    owner = profile_factory(telegram_user_id=1)
+    guest_a = profile_factory(telegram_user_id=2)
+    guest_b = profile_factory(telegram_user_id=3)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest_a)
+    wishlist_access_factory(wishlist=wishlist, profile=guest_b)
     wish = wish_factory(wishlist=wishlist)
-    wish_reservation_factory(wish=wish, profile=profile_2)
+    wish_reservation_factory(wish=wish, profile=guest_a)
     response = api_client.delete(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(profile_1.telegram_user_id),
+        headers=auth_headers(guest_b.telegram_user_id),
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
-    assert WishReservation.objects.filter(wish=wish, profile=profile_2).exists()
+    assert WishReservation.objects.filter(wish=wish, profile=guest_a).exists()
 
 
 @pytest.mark.django_db
 def test_delete_wish_reserve_not_exists(
     api_client,
-    profile,
+    profile_factory,
     wishlist_factory,
     wish_factory,
+    wishlist_access_factory,
     auth_headers,
 ):
-    wishlist = wishlist_factory(telegram_profile=profile)
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
     wish = wish_factory(wishlist=wishlist)
     response = api_client.delete(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
-        headers=auth_headers(profile.telegram_user_id),
+        headers=auth_headers(guest.telegram_user_id),
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
 
@@ -220,18 +269,22 @@ def test_delete_wish_reserve_not_exists(
 @pytest.mark.django_db
 def test_delete_wish_reserve_wrong_wish(
     api_client,
-    profile,
+    profile_factory,
     wishlist_factory,
     wish_factory,
     auth_headers,
     wish_reservation_factory,
+    wishlist_access_factory,
 ):
-    wishlist = wishlist_factory(telegram_profile=profile)
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
     wish = wish_factory(wishlist=wishlist)
-    wish_reservation_factory(wish=wish, profile=profile)
+    wish_reservation_factory(wish=wish, profile=guest)
     response = api_client.delete(
         f"/api/wishlists/{wishlist.id}/wishes/99999/reserve/",
-        headers=auth_headers(profile.telegram_user_id),
+        headers=auth_headers(guest.telegram_user_id),
     )
     assert response.status_code == HTTPStatus.NOT_FOUND
 
@@ -239,15 +292,19 @@ def test_delete_wish_reserve_wrong_wish(
 @pytest.mark.django_db
 def test_delete_wish_reserve_wrong_bearer(
     api_client,
-    profile,
+    profile_factory,
     wishlist_factory,
     wish_factory,
     auth_headers,
     wish_reservation_factory,
+    wishlist_access_factory,
 ):
-    wishlist = wishlist_factory(telegram_profile=profile)
+    owner = profile_factory(telegram_user_id=1)
+    guest = profile_factory(telegram_user_id=2)
+    wishlist = wishlist_factory(telegram_profile=owner)
+    wishlist_access_factory(wishlist=wishlist, profile=guest)
     wish = wish_factory(wishlist=wishlist)
-    wish_reservation_factory(wish=wish, profile=profile)
+    wish_reservation_factory(wish=wish, profile=guest)
     response = api_client.delete(
         f"/api/wishlists/{wishlist.id}/wishes/{wish.id}/reserve/",
         headers={"Authorization": "Bearer test-wrong-token"},
