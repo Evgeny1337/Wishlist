@@ -16,12 +16,12 @@ class Wish(models.Model):
         HIGH = 3
     wishlist = models.ForeignKey(WishList, on_delete=models.CASCADE, related_name="wishes")
     title = models.CharField(max_length=200)
-    url = models.URLField(blank=True)
+    url = models.URLField(blank=True, max_length=1000)
     note = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     priority = models.IntegerField(choices=WishPriority, default=WishPriority.LOW)
     preview_title = models.CharField(blank=True, max_length=200, default="")
-    preview_image_url = models.URLField(blank=True, default="")
+    preview_image_url = models.URLField(blank=True, default="", max_length=1000)
 
 
 class WishReservation(models.Model):
