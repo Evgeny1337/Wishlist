@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from enum import Enum
 
 from ninja import ModelSchema, Schema
 from pydantic import Field, PositiveInt
@@ -39,3 +40,9 @@ class EventUpdateRequest(Schema):
     title: str | None = Field(description="Наименование", min_length=1, default=None)
     wishlist: PositiveInt | None = Field(description="ID Вишлиста", default=None)
     starts_at: datetime | None = Field(description="Дата события", default=None)
+
+
+class EventTypesFilter(str, Enum):
+    ALL = "ALL"
+    MINE = "MINE"
+    SOMEONE = "SOMEONE"

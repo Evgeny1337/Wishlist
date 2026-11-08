@@ -4,12 +4,16 @@ from typing import List
 from django.db.models import Q
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
-from ninja import Router, Status
+from ninja import Router, Status, Query
 from ninja.errors import HttpError
 from pydantic import PositiveInt
 
 from invites.auth import TelegramJWTAuth
-from wishlists.access import can_view_event_wishlist
+from wishlists.access import (
+    can_view_event_wishlist,
+    can_view_own_event,
+    can_view_someone_else_event,
+)
 from wishlists.models import WishList, Event
 from wishlists.schemas import (
     DeletedResponse,
@@ -19,10 +23,17 @@ from wishlists.schemas import (
     EventUpdateRequest,
     ValidationErrorSchema,
 )
+from wishlists.schemas.event import EventTypesFilter
 
 events_router = Router(auth=TelegramJWTAuth())
 
 _UNPROCESSABLE = DetailSchema | ValidationErrorSchema
+
+_EVENT_TYPE_FILTERS = {
+    EventTypesFilter.ALL: can_view_event_wishlist,
+    EventTypesFilter.MINE: can_view_own_event,
+    EventTypesFilter.SOMEONE: can_view_someone_else_event,
+}
 
 
 @events_router.post(
@@ -52,9 +63,17 @@ def create_event(request: HttpRequest, payload: EventCreateRequest):
         HTTPStatus.UNPROCESSABLE_ENTITY: _UNPROCESSABLE,
     },
 )
-def list_events(request: HttpRequest):
+def list_events(
+    request: HttpRequest,
+    eventType: Query[EventTypesFilter | None] = None,
+):
     profile = request.auth
-    events = Event.objects.filter(can_view_event_wishlist(profile=profile)).order_by("starts_at").distinct()
+    access_filter = _EVENT_TYPE_FILTERS[eventType or EventTypesFilter.ALL]
+    events = (
+        Event.objects.filter(access_filter(profile))
+        .order_by("starts_at")
+        .distinct()
+    )
     return Status(HTTPStatus.OK, list(events))
 
 

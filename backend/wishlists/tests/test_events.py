@@ -277,6 +277,99 @@ def test_list_events_unauthorized(api_client):
 
 
 @pytest.mark.django_db
+def test_list_events_filter_mine(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    shared = wishlist_factory(telegram_profile=owner, title="shared")
+    own = wishlist_factory(telegram_profile=viewer, title="mine")
+    shared_event = event_factory(wishlist=shared, owner=owner, title="shared-event")
+    own_event = event_factory(wishlist=own, owner=viewer, title="own-event")
+    wishlist_access_factory(wishlist=shared, profile=viewer)
+
+    response = api_client.get(
+        "/api/events/",
+        headers=auth_headers(viewer.telegram_user_id),
+        data={"eventType": "MINE"},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert [item["id"] for item in body] == [own_event.id]
+    assert shared_event.id not in {item["id"] for item in body}
+
+
+@pytest.mark.django_db
+def test_list_events_filter_someone(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    shared = wishlist_factory(telegram_profile=owner, title="shared")
+    own = wishlist_factory(telegram_profile=viewer, title="mine")
+    shared_event = event_factory(wishlist=shared, owner=owner, title="shared-event")
+    own_event = event_factory(wishlist=own, owner=viewer, title="own-event")
+    wishlist_access_factory(wishlist=shared, profile=viewer)
+
+    response = api_client.get(
+        "/api/events/",
+        headers=auth_headers(viewer.telegram_user_id),
+        data={"eventType": "SOMEONE"},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert [item["id"] for item in body] == [shared_event.id]
+    assert own_event.id not in {item["id"] for item in body}
+
+
+@pytest.mark.django_db
+def test_list_events_filter_all(
+    api_client,
+    profile_factory,
+    wishlist_factory,
+    event_factory,
+    wishlist_access_factory,
+    auth_headers,
+):
+    owner = profile_factory(telegram_user_id=1)
+    viewer = profile_factory(telegram_user_id=2)
+    shared = wishlist_factory(telegram_profile=owner, title="shared")
+    own = wishlist_factory(telegram_profile=viewer, title="mine")
+    shared_event = event_factory(wishlist=shared, owner=owner, title="shared-event")
+    own_event = event_factory(wishlist=own, owner=viewer, title="own-event")
+    wishlist_access_factory(wishlist=shared, profile=viewer)
+
+    response = api_client.get(
+        "/api/events/",
+        headers=auth_headers(viewer.telegram_user_id),
+        data={"eventType": "ALL"},
+    )
+    body = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert {item["id"] for item in body} == {shared_event.id, own_event.id}
+
+
+@pytest.mark.django_db
+def test_list_events_filter_invalid(api_client, profile, auth_headers):
+    response = api_client.get(
+        "/api/events/",
+        headers=auth_headers(profile.telegram_user_id),
+        data={"eventType": "OTHER"},
+    )
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.django_db
 def test_update_event_happy_path(
     api_client,
     profile,
