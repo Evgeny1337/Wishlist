@@ -29,6 +29,14 @@ DEBUG = os.getenv('DEBUG', 'True')
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost').split(',') if host.strip()]
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN','')
+# Username бота без @ — для startapp-ссылок (https://t.me/<username>?startapp=...)
+TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', '').lstrip('@')
+# Админы Mini App (tg id через запятую). Дефолт — владелец.
+ADMIN_TELEGRAM_USER_IDS = [
+    int(part.strip())
+    for part in os.getenv('ADMIN_TELEGRAM_USER_IDS', '425606812').split(',')
+    if part.strip().isdigit()
+]
 
 JWT_SECRET = os.getenv('JWT_SECRET','')
 

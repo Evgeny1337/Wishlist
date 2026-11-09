@@ -1,7 +1,8 @@
+from datetime import datetime
 from typing import Optional
 
 from ninja import Schema
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PositiveInt
 
 
 class RefreshIn(BaseModel):
@@ -64,3 +65,52 @@ class UserModel(BaseModel):
 
 class ErrorUnauthorized(Schema):
     detail: dict[str, str]
+
+
+class InviteCreateIn(BaseModel):
+    max_uses: PositiveInt = Field(default=1, description="Лимит активаций")
+    expires_at: Optional[datetime] = Field(
+        default=None,
+        description="Срок действия (UTC); пусто — без срока",
+    )
+    for_telegram_user_id: Optional[PositiveInt] = Field(
+        default=None,
+        description="Личный инвайт только для этого tg id; пусто — общий",
+    )
+    token: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        description="Свой токен startapp; пусто — сгенерировать",
+    )
+
+
+class InviteOut(BaseModel):
+    token: str
+    max_uses: int
+    used_count: int
+    is_active: bool
+    expires_at: Optional[datetime] = None
+    for_telegram_user_id: Optional[int] = None
+    created_at: datetime
+    startapp_url: Optional[str] = None
+
+
+class ProfileLookupTelegramOut(BaseModel):
+    id: Optional[int] = None
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    type: Optional[str] = None
+
+
+class ProfileLookupOut(BaseModel):
+    telegram_user_id: int
+    in_app: bool
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    in_telegram: Optional[bool] = Field(
+        default=None,
+        description="None — Bot API недоступен; True/False — ответ getChat",
+    )
+    telegram: Optional[ProfileLookupTelegramOut] = None
