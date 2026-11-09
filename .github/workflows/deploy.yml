@@ -9,49 +9,68 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
+      # appleboy/ssh-action тянет drone-ssh с GitHub Releases и часто падает 504.
+      # Используем встроенный OpenSSH раннера.
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            set -euo pipefail
-            cd "${{ secrets.DEPLOY_PATH }}"
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-            echo "==> git pull"
-            git pull
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
-            echo "==> check frontend static"
-            if [ ! -f frontend/index.html ]; then
-              echo "ERROR: нет статики клиента в $(pwd)/frontend/"
-              echo "Ожидается frontend/index.html (результат npm run build:prod из WishlistClient)."
-              echo "Залей build/ на сервер и перезапусти deploy."
-              ls -la frontend/ || true
-              exit 1
+      - name: Deploy over SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          ssh -o IdentitiesOnly=yes \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=10 \
+              "${DEPLOY_USER}@${DEPLOY_HOST}" \
+              "DEPLOY_PATH=$(printf %q "$DEPLOY_PATH") bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+
+          echo "==> git pull"
+          git pull
+
+          echo "==> check frontend static"
+          if [ ! -f frontend/index.html ]; then
+            echo "ERROR: нет статики клиента в $(pwd)/frontend/"
+            echo "Ожидается frontend/index.html (результат npm run build:prod из WishlistClient)."
+            echo "Залей build/ на сервер и перезапусти deploy."
+            ls -la frontend/ || true
+            exit 1
+          fi
+          echo "frontend ok: frontend/index.html"
+
+          echo "==> docker compose up"
+          docker compose up -d --build
+
+          echo "==> health checks"
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8080/api/health >/dev/null \
+              && curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ | grep -qE '200|304'; then
+              echo
+              echo "health ok (web :8080 + /api/health)"
+              ok=1
+              break
             fi
-            echo "frontend ok: frontend/index.html"
+            echo "waiting for web/api... ($i)"
+            sleep 2
+          done
 
-            echo "==> docker compose up"
-            docker compose up -d --build
-
-            echo "==> health checks"
-            ok=0
-            for i in $(seq 1 30); do
-              if curl -sf http://127.0.0.1:8080/api/health >/dev/null \
-                && curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ | grep -qE '200|304'; then
-                echo
-                echo "health ok (web :8080 + /api/health)"
-                ok=1
-                break
-              fi
-              echo "waiting for web/api... ($i)"
-              sleep 2
-            done
-
-            if [ "$ok" != "1" ]; then
-              echo "health check failed"
-              docker compose ps
-              docker compose logs --tail=80 api web
-              exit 1
-            fi
+          if [ "$ok" != "1" ]; then
+            echo "health check failed"
+            docker compose ps
+            docker compose logs --tail=80 api web
+            exit 1
+          fi
+          REMOTE
