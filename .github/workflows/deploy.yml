@@ -16,19 +16,42 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             cd "${{ secrets.DEPLOY_PATH }}"
+
+            echo "==> git pull"
             git pull
+
+            echo "==> check frontend static"
+            if [ ! -f frontend/index.html ]; then
+              echo "ERROR: нет статики клиента в $(pwd)/frontend/"
+              echo "Ожидается frontend/index.html (результат npm run build:prod из WishlistClient)."
+              echo "Залей build/ на сервер и перезапусти deploy."
+              ls -la frontend/ || true
+              exit 1
+            fi
+            echo "frontend ok: frontend/index.html"
+
+            echo "==> docker compose up"
             docker compose up -d --build
+
+            echo "==> health checks"
+            ok=0
             for i in $(seq 1 30); do
-              if curl -sf http://127.0.0.1:8000/api/health; then
+              if curl -sf http://127.0.0.1:8080/api/health >/dev/null \
+                && curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/ | grep -qE '200|304'; then
                 echo
-                echo "health ok"
-                exit 0
+                echo "health ok (web :8080 + /api/health)"
+                ok=1
+                break
               fi
-              echo "waiting for api... ($i)"
+              echo "waiting for web/api... ($i)"
               sleep 2
             done
-            echo "health check failed"
-            docker compose logs --tail=80 api
-            exit 1
+
+            if [ "$ok" != "1" ]; then
+              echo "health check failed"
+              docker compose ps
+              docker compose logs --tail=80 api web
+              exit 1
+            fi

@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-wishlist}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - wishlist_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,13 +26,27 @@ services:
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
+    expose:
+      - "8000"
+    # Для отладки с хоста (health без nginx). В проде достаточно web:8080
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
 
+  web:
+    image: nginx:alpine
+    container_name: wishlist_web
+    restart: unless-stopped
+    ports:
+      # Хостовый nginx+certbot проксирует домен сюда (см. docker/nginx/host-proxy.example.conf)
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
 
 volumes:
   wishlist_pg_data:
-
