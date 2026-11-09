@@ -29,8 +29,11 @@ DEBUG = os.getenv('DEBUG', 'True')
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('ALLOWED_HOSTS', 'localhost').split(',') if host.strip()]
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN','')
-# Username бота без @ — для startapp-ссылок (https://t.me/<username>?startapp=...)
+# Username бота без @ — для startapp-ссылок
 TELEGRAM_BOT_USERNAME = os.getenv('TELEGRAM_BOT_USERNAME', '').lstrip('@')
+# Short name Mini App из BotFather (Direct Link).
+# Ссылка: https://t.me/<username>/<short_name>?startapp=<token>
+TELEGRAM_MINI_APP_SHORT_NAME = os.getenv('TELEGRAM_MINI_APP_SHORT_NAME', '').strip().strip('/')
 # Админы Mini App (tg id через запятую). Дефолт — владелец.
 ADMIN_TELEGRAM_USER_IDS = [
     int(part.strip())

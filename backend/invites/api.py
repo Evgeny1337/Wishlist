@@ -30,6 +30,13 @@ def _build_startapp_url(token: str) -> Optional[str]:
     bot = (getattr(settings, "TELEGRAM_BOT_USERNAME", None) or "").strip().lstrip("@")
     if not bot:
         return None
+    # Direct Link Mini App: t.me/<bot>/<short_name>?startapp=...
+    # Без short_name Telegram часто открывает чат бота, а не WebApp — start_param теряется.
+    short_name = (
+        getattr(settings, "TELEGRAM_MINI_APP_SHORT_NAME", None) or ""
+    ).strip().strip("/")
+    if short_name:
+        return f"https://t.me/{bot}/{short_name}?startapp={token}"
     return f"https://t.me/{bot}?startapp={token}"
 
 
