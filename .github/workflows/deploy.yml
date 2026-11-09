@@ -9,17 +9,34 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # appleboy/ssh-action тянет drone-ssh с GitHub Releases и часто падает 504.
-      # Используем встроенный OpenSSH раннера.
-      - name: Setup SSH key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Add server to known_hosts
+      - name: Prepare SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_SSH_KEY:-}" ]; then
+            echo "ERROR: secret DEPLOY_SSH_KEY пустой"
+            exit 1
+          fi
+
+          # Нормализуем переносы строк (часто ломается при вставке в GitHub UI)
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Проверка, что это private key
+          if ! grep -q "BEGIN .*PRIVATE KEY" ~/.ssh/deploy_key; then
+            echo "ERROR: DEPLOY_SSH_KEY не похож на private key (нет BEGIN PRIVATE KEY)"
+            echo "В secret должен быть содержимое файла БЕЗ .pub"
+            exit 1
+          fi
+
+          echo "Key fingerprint:"
+          ssh-keygen -lf ~/.ssh/deploy_key || true
+          echo "Public key derived from secret:"
+          ssh-keygen -y -f ~/.ssh/deploy_key
+
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy over SSH
@@ -29,7 +46,10 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           set -euo pipefail
-          ssh -o IdentitiesOnly=yes \
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o PreferredAuthentications=publickey \
               -o ServerAliveInterval=30 \
               -o ServerAliveCountMax=10 \
               "${DEPLOY_USER}@${DEPLOY_HOST}" \
