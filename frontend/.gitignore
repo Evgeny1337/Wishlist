@@ -1,4 +1,4 @@
-*
-!.gitignore
-!.gitkeep
-!README.md
+# Можно коммитить prod-сборку для деплоя через git pull.
+# Локальный мусор:
+*.map
+.DS_Store
